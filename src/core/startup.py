@@ -16,6 +16,9 @@ class Startup:
         print("\nInitializing Empire OS...\n")
 
         print("✓ Configuration Loaded")
+        memory_status = self.memory.status()
+
+        print(memory_status)
         print("✓ Memory Ready")
         print("✓ Empire Brain Ready")
         print("✓ AI Workers Ready")

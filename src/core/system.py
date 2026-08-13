@@ -5,8 +5,8 @@ Provides basic information about the running system.
 """
 
 import platform
+
 from src.config import Config
-from src.core.empire import Empire
 
 
 class System:

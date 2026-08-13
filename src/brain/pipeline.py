@@ -2,12 +2,12 @@
 Brain Processing Pipeline
 """
 
-from .intent import IntentDetector
 from .context import ContextAnalyzer
-from .thinking import BusinessThinking
 from .decisions import DecisionEngine
+from .intent import IntentDetector
 from .planner import ExecutionPlanner
 from .response import ResponseBuilder
+from .thinking import BusinessThinking
 
 
 class BrainPipeline:

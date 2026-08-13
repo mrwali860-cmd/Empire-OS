@@ -12,9 +12,9 @@ Responsibilities:
 - Manage History
 """
 
+from .history import HistoryMemory
 from .profile import FounderProfile
 from .session import SessionMemory
-from .history import HistoryMemory
 from .storage import MemoryStorage
 
 
