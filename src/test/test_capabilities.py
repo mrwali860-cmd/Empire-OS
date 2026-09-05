@@ -99,6 +99,50 @@ def test_project_search_malformed_result_failed(tmp_path: Path):
     assert result["status"] == OrchestrationStatus.FAILED.value
 
 
+def test_file_read_is_bounded_and_verified(tmp_path: Path):
+    (tmp_path / "app.py").write_text("VALUE = 42\n", encoding="utf-8")
+    executor = EmpireCapabilityExecutor(project_root=tmp_path)
+    result = executor.execute("file_read", make_task("file_read", "Execute planned step: read file app.py"))
+    assert result.ok is True
+    assert result.data["path"] == "app.py"
+    assert result.data["content"] == "VALUE = 42\n"
+    assert executor.verify("file_read", result) is True
+
+
+def test_file_read_completed_and_audited(tmp_path: Path):
+    (tmp_path / "app.py").write_text("VALUE = 42\n", encoding="utf-8")
+    result = EmpireOrchestrator(EmpireCapabilityExecutor(project_root=tmp_path)).execute_plan(
+        make_plan("file_read", "Execute planned step: read file app.py")
+    )
+    assert result["status"] == OrchestrationStatus.COMPLETED.value
+    assert result["completed_tasks"] == 1
+    audit = result["audit"][0]
+    assert audit["capability"] == "file_read"
+    assert audit["verified"] is True
+    assert audit["result"]["data"]["content"] == "VALUE = 42\n"
+
+
+def test_file_read_path_traversal_rejected(tmp_path: Path):
+    result = EmpireCapabilityExecutor(project_root=tmp_path).execute(
+        "file_read", make_task("file_read", "Execute planned step: read file ../secret.txt")
+    )
+    assert result.ok is False
+    assert EmpireCapabilityExecutor(project_root=tmp_path).verify("file_read", result) is False
+
+
+def test_file_read_malformed_result_failed(tmp_path: Path):
+    class MalformedExecutor(EmpireCapabilityExecutor):
+        def execute(self, capability, task):
+            if capability == "file_read":
+                return CapabilityResult(True, "file_read", {"path": "app.py"})
+            return super().execute(capability, task)
+
+    result = EmpireOrchestrator(MalformedExecutor()).execute_plan(
+        make_plan("file_read", "Execute planned step: read file app.py")
+    )
+    assert result["status"] == OrchestrationStatus.FAILED.value
+
+
 def test_passing_tests_completed(monkeypatch, tmp_path: Path):
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
 
