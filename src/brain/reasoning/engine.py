@@ -46,6 +46,23 @@ class ReasoningResult:
 class ReasoningEngine:
     """Turn intent/context/thinking into an explicit, testable plan."""
 
+    @staticmethod
+    def _project_search_query(text: str) -> str:
+        normalized = text.strip()
+        prefixes = (
+            "search project for ",
+            "search code for ",
+            "search repository for ",
+            "find in project ",
+            "find in code ",
+            "find code ",
+        )
+        lowered = normalized.lower()
+        for prefix in prefixes:
+            if lowered.startswith(prefix):
+                return normalized[len(prefix):].strip()
+        return normalized
+
     def reason(
         self,
         user_input: str,
@@ -77,7 +94,8 @@ class ReasoningEngine:
         if intent == "GIT_STATUS":
             actions = ("Check Git status",)
         elif intent == "PROJECT_SEARCH":
-            actions = (f"Search project source files for: {text}",)
+            query = self._project_search_query(text)
+            actions = (f"Search project source files for: {query}",)
         elif not actions:
             actions = (
                 "Clarify the objective and success criteria",
