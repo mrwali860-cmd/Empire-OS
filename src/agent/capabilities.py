@@ -68,7 +68,7 @@ class EmpireCapabilityExecutor:
     """Concrete, controlled executors used by the Empire orchestrator."""
 
     def __init__(self, project_root: str | Path | None = None) -> None:
-        self.project_root = Path(project_root or Path(__file__).resolve().parents[2])
+        self.project_root = Path(project_root or Path(__file__).resolve().parents[2]).resolve()
         self.registry = CapabilityRegistry()
         self.registry.register("file_read", FileReadCapability(self.project_root).execute)
         self.registry.register("file_write", FileWriteCapability(self.project_root).execute)
