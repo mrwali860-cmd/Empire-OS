@@ -1,6 +1,6 @@
 """
 Empire OS
-Task Orchestrator — v0.7
+Task Orchestrator — v0.8
 
 Flow:
 Plan → Route → Permission → Execute → Verify → Evidence → Audit → Next Task
@@ -44,6 +44,7 @@ class EmpireOrchestrator:
         self.routes: dict[str, str] = {
             "inspect_project": "project_inspection",
             "run_tests": "test_runner",
+            "git_status": "git_status",
         }
         self.capability_executor = capability_executor or EmpireCapabilityExecutor()
         self.audit = audit or ExecutionAudit()
