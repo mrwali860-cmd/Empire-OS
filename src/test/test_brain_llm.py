@@ -43,6 +43,7 @@ def test_pipeline_uses_valid_llm_reasoning():
 
     assert llm.calls == 1
     assert llm.intent_calls == 1
+    assert "Goal: Acquire the first client" in result
     assert "Acquire the first client" in result
     assert "Define offer" in result
 
