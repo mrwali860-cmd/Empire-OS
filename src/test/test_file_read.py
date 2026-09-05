@@ -19,7 +19,9 @@ def make_plan(action="file_read", description="Execute planned step: read file s
 
 
 def test_file_read_returns_bounded_content(tmp_path: Path):
-    target = tmp_path / "app.py"
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    target = source_dir / "app.py"
     target.write_text("print('hello')\n", encoding="utf-8")
     result = EmpireCapabilityExecutor(project_root=tmp_path).execute("file_read", make_task())
     assert result.ok is True
