@@ -76,6 +76,8 @@ class ReasoningEngine:
 
         if intent == "GIT_STATUS":
             actions = ("Check Git status",)
+        elif intent == "PROJECT_SEARCH":
+            actions = (f"Search project source files for: {text}",)
         elif not actions:
             actions = (
                 "Clarify the objective and success criteria",
