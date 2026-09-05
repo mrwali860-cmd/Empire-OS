@@ -8,12 +8,13 @@ from .planner import ExecutionPlanner
 from .response import ResponseBuilder
 from .thinking import BusinessThinking
 from .reasoning import ReasoningEngine, ReasoningVerifier, ReasoningResult
+from ..agent.orchestrator import EmpireOrchestrator
 
 
 class BrainPipeline:
-    """Process requests through LLM reasoning with a deterministic fallback."""
+    """Process requests through reasoning, planning, and optional execution."""
 
-    def __init__(self, llm=None, intent_llm=None):
+    def __init__(self, llm=None, intent_llm=None, orchestrator=None):
         self.llm = llm or LLMClient()
         self.intent = IntentDetector(llm=intent_llm or self.llm)
         self.context = ContextAnalyzer()
@@ -22,6 +23,7 @@ class BrainPipeline:
         self.verifier = ReasoningVerifier()
         self.decision = DecisionEngine()
         self.planner = ExecutionPlanner()
+        self.orchestrator = orchestrator or EmpireOrchestrator()
         self.response = ResponseBuilder()
 
     def _reason(self, user_input, intent, context, thinking_result):
@@ -58,7 +60,12 @@ class BrainPipeline:
         print("Reasoning Source: DETERMINISTIC_FALLBACK")
         return fallback
 
-    def process(self, user_input):
+    def process(self, user_input, *, execute=False, approved=False, executor=None, task_verifier=None):
+        """Process a request and optionally execute its validated plan.
+
+        Execution is opt-in. Without ``execute=True`` the method preserves the
+        existing response-only behavior and never triggers side effects.
+        """
         print("Pipeline Started")
 
         intent = self.intent.detect(user_input)
@@ -90,7 +97,23 @@ class BrainPipeline:
         plan = self.planner.plan(decision)
         print(f"Plan: {plan}")
 
-        response = self.response.build(plan, context)
+        orchestration_result = None
+        if execute and plan.get("status") == "READY":
+            if executor is None:
+                raise ValueError("executor is required when execute=True")
+            orchestration_result = self.orchestrator.execute_plan(
+                plan,
+                executor=executor,
+                verifier=task_verifier,
+                approved=approved,
+            )
+            print(f"Orchestration: {orchestration_result}")
+
+        response = self.response.build(
+            plan,
+            context,
+            orchestration_result=orchestration_result,
+        )
         print(f"Response: {response}")
 
         return response
