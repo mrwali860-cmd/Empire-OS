@@ -44,11 +44,21 @@ class CapabilityRegistry:
     def has(self, name: str) -> bool:
         return name in self._handlers
 
-    def execute(self, name: str, task: Task) -> Any:
+    def execute(self, name: str, task: Task) -> CapabilityResult:
         handler = self._handlers.get(name)
         if handler is None:
             raise CapabilityError(f"Capability is not registered: {name}")
-        return handler(task)
+        raw = handler(task)
+        if isinstance(raw, CapabilityResult):
+            return raw
+        if isinstance(raw, dict):
+            return CapabilityResult(
+                ok=bool(raw.get("ok", False)),
+                capability=str(raw.get("capability", name)),
+                data=raw.get("data") if isinstance(raw.get("data"), dict) else {},
+                error=raw.get("error"),
+            )
+        raise CapabilityError(f"Malformed capability result for: {name}")
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -64,7 +74,7 @@ class EmpireCapabilityExecutor:
         self.registry.register("project_inspection", self.inspect_project)
         self.registry.register("test_runner", self.run_tests)
 
-    def execute(self, capability: str, task: Task) -> Any:
+    def execute(self, capability: str, task: Task) -> CapabilityResult:
         return self.registry.execute(capability, task)
 
     def verify(self, capability: str, result: Any) -> bool:
