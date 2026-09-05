@@ -8,6 +8,9 @@ class BusinessThinking:
         if intent == "PROJECT_SEARCH":
             return "Goal: Find requested code in the project\n1. Search project source files"
 
+        if intent == "FILE_READ":
+            return "Goal: Read the requested project file\n1. Read file"
+
         if intent == "CLIENT_ACQUISITION":
             if context.get("experience") == "BEGINNER":
                 return "Goal: Get First Client\nStep 1: Create 3 Fiverr gigs\nStep 2: Send 10 proposals today\nStep 3: Improve profile daily"
