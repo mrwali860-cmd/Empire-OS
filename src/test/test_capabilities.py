@@ -39,7 +39,7 @@ def test_registry_rejects_unknown_capability():
 
 def test_default_executor_registers_real_routes(tmp_path: Path):
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
-    assert executor.registry.names == ("git_status", "project_inspection", "project_search", "test_runner")
+    assert executor.registry.names == ("file_read", "git_status", "project_inspection", "project_search", "test_runner")
     result = executor.execute("project_inspection", make_task())
     assert isinstance(result, CapabilityResult)
     assert result.ok is True
