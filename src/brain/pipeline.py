@@ -48,7 +48,7 @@ class BrainPipeline:
                 print("Reasoning Source: LLM")
                 return result
             print(f"LLM reasoning rejected: {check['reason']}")
-        except (LLMConfigError, LLMProviderError, ValueError, TypeError, KeyError) as exc:
+        except (LLMConfigError, LLMProviderError, ValueError, TypeError, KeyError, AttributeError) as exc:
             print(f"LLM unavailable: {exc}")
 
         fallback = self.reasoning.reason(
