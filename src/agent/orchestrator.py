@@ -1,12 +1,8 @@
 """
 Empire OS
-Task Orchestrator — v0.2
-
-Purpose:
-Coordinate a validated execution plan without embedding capability logic.
+Task Orchestrator — v0.3
 
 Flow:
-
 Plan → Route → Permission → Execute → Verify → Next Task
 """
 
@@ -16,12 +12,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
 
+from .capabilities import EmpireCapabilityExecutor
 from .tasks import Task
 
 
 class OrchestrationStatus(str, Enum):
-    """Lifecycle state of a plan execution."""
-
     READY = "ready"
     RUNNING = "running"
     VERIFYING = "verifying"
@@ -42,28 +37,21 @@ class RouteDecision:
 
 
 class EmpireOrchestrator:
-    """
-    Deterministic coordinator for Empire OS.
+    """Deterministic coordinator backed by an allow-listed capability layer."""
 
-    The orchestrator owns sequencing and safety boundaries. It does not
-    implement capabilities itself; execution and verification are injected.
-    """
-
-    def __init__(self) -> None:
+    def __init__(self, capability_executor=None) -> None:
         self.routes: dict[str, str] = {
             "inspect_project": "project_inspection",
             "run_tests": "test_runner",
         }
+        self.capability_executor = capability_executor or EmpireCapabilityExecutor()
 
     def classify(self, task: Task) -> str:
-        """Return the task command."""
         return task.command
 
     def route(self, task: Task) -> RouteDecision:
-        """Decide which capability should handle a task."""
         command = self.classify(task)
         capability = self.routes.get(command)
-
         if capability is None:
             return RouteDecision(
                 task_id=task.id,
@@ -72,7 +60,14 @@ class EmpireOrchestrator:
                 accepted=False,
                 reason=f"No capability registered for command: {command}",
             )
-
+        if not self.capability_executor.registry.has(capability):
+            return RouteDecision(
+                task_id=task.id,
+                command=command,
+                capability=capability,
+                accepted=False,
+                reason=f"Capability is not registered: {capability}",
+            )
         return RouteDecision(
             task_id=task.id,
             command=command,
@@ -83,7 +78,6 @@ class EmpireOrchestrator:
 
     @staticmethod
     def _task_from_plan(raw: dict[str, Any]) -> Task:
-        """Convert a planner task contract into an executable Task."""
         return Task(
             id=str(raw["id"]),
             name=str(raw.get("title", raw["id"])),
@@ -96,16 +90,11 @@ class EmpireOrchestrator:
         self,
         plan: dict[str, Any],
         *,
-        executor: Callable[[Task], Any],
+        executor: Callable[[Task], Any] | None = None,
         verifier: Callable[[Task, Any], bool] | None = None,
         approved: bool = False,
     ) -> dict[str, Any]:
-        """
-        Execute plan tasks sequentially and stop at the first failure.
-
-        The executor is deliberately injected so the orchestrator remains
-        independent from concrete agents and external side effects.
-        """
+        """Execute tasks sequentially through controlled capabilities."""
         if plan.get("status") != "READY":
             return {
                 "status": OrchestrationStatus.FAILED.value,
@@ -129,47 +118,31 @@ class EmpireOrchestrator:
         for task in tasks:
             route = self.route(task)
             if not route.accepted:
-                result.update(
-                    status=OrchestrationStatus.FAILED.value,
-                    failed_task_id=task.id,
-                    error=route.reason,
-                )
+                result.update(status=OrchestrationStatus.FAILED.value, failed_task_id=task.id, error=route.reason)
                 return result
-
             if task.requires_permission and not approved:
-                result.update(
-                    status=OrchestrationStatus.REJECTED.value,
-                    failed_task_id=task.id,
-                    error="Permission not approved.",
-                )
+                result.update(status=OrchestrationStatus.REJECTED.value, failed_task_id=task.id, error="Permission not approved.")
                 return result
 
             try:
+                task.start()
                 result["status"] = OrchestrationStatus.RUNNING.value
-                output = executor(task)
+                output = (
+                    executor(task)
+                    if executor is not None
+                    else self.capability_executor.execute(route.capability, task)
+                )
                 result["status"] = OrchestrationStatus.VERIFYING.value
-
-                verified = (
-                    verifier(task, output)
-                    if verifier is not None
-                    else output is not None
-                )
+                verified = verifier(task, output) if verifier is not None else output is not None
                 if not verified:
-                    result.update(
-                        status=OrchestrationStatus.FAILED.value,
-                        failed_task_id=task.id,
-                        error="Task verification failed.",
-                    )
+                    task.fail("Task verification failed.")
+                    result.update(status=OrchestrationStatus.FAILED.value, failed_task_id=task.id, error="Task verification failed.")
                     return result
-
+                task.complete(output)
                 result["completed_tasks"] += 1
-
             except Exception as exc:
-                result.update(
-                    status=OrchestrationStatus.FAILED.value,
-                    failed_task_id=task.id,
-                    error=str(exc),
-                )
+                task.fail(str(exc))
+                result.update(status=OrchestrationStatus.FAILED.value, failed_task_id=task.id, error=str(exc))
                 return result
 
         result["status"] = OrchestrationStatus.COMPLETED.value
