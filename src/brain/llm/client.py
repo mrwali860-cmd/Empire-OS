@@ -15,6 +15,10 @@ class LLMConfigError(RuntimeError):
     """Raised when the LLM provider is not configured correctly."""
 
 
+class LLMProviderError(LLMConfigError):
+    """Raised when the configured LLM provider cannot complete a request."""
+
+
 class LLMClient:
     """Small OpenAI Responses API adapter with structured JSON output."""
 
@@ -38,28 +42,31 @@ class LLMClient:
                 "The openai package is not installed. Install the official OpenAI Python SDK."
             ) from exc
 
-        client = OpenAI(api_key=self.api_key)
-        response = client.responses.create(
-            model=self.model,
-            instructions=(
-                "You are the reasoning core of Empire OS. "
-                "Analyze the user's objective, use the supplied context, "
-                "state assumptions and constraints, and produce a small "
-                "testable action plan. Do not claim an action was executed. "
-                "Return only valid JSON with keys: goal, assumptions, "
-                "constraints, next_actions, confidence. confidence must be "
-                "a number from 0 to 1 and next_actions must be a non-empty array."
-            ),
-            input=json.dumps(payload, ensure_ascii=False),
-        )
+        try:
+            client = OpenAI(api_key=self.api_key)
+            response = client.responses.create(
+                model=self.model,
+                instructions=(
+                    "You are the reasoning core of Empire OS. "
+                    "Analyze the user's objective, use the supplied context, "
+                    "state assumptions and constraints, and produce a small "
+                    "testable action plan. Do not claim an action was executed. "
+                    "Return only valid JSON with keys: goal, assumptions, "
+                    "constraints, next_actions, confidence. confidence must be "
+                    "a number from 0 to 1 and next_actions must be a non-empty array."
+                ),
+                input=json.dumps(payload, ensure_ascii=False),
+            )
+        except Exception as exc:
+            raise LLMProviderError(f"LLM provider request failed: {exc}") from exc
 
         raw = response.output_text.strip()
         try:
             result = json.loads(raw)
         except json.JSONDecodeError as exc:
-            raise LLMConfigError("LLM returned non-JSON reasoning output.") from exc
+            raise LLMProviderError("LLM returned non-JSON reasoning output.") from exc
 
         if not isinstance(result, dict):
-            raise LLMConfigError("LLM reasoning output must be a JSON object.")
+            raise LLMProviderError("LLM reasoning output must be a JSON object.")
 
         return result
