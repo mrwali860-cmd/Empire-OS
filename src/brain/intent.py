@@ -16,10 +16,12 @@ class IntentDetector:
         "SYSTEM_BUILDING",
         "MARKETING",
         "HIRING",
+        "GIT_STATUS",
         "UNKNOWN",
     }
 
     KEYWORDS = {
+        "GIT_STATUS": ("git status", "repository status", "repo status", "working tree", "changed files", "branch status"),
         "CLIENT_ACQUISITION": ("client", "customer", "prospect", "lead"),
         "REVENUE_GROWTH": ("revenue", "income", "sales", "profit"),
         "SYSTEM_BUILDING": ("system", "software", "platform", "build"),
