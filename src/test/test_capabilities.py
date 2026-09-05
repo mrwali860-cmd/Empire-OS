@@ -7,12 +7,12 @@ from src.agent.orchestrator import EmpireOrchestrator, OrchestrationStatus
 from src.agent.tasks import Task
 
 
-def make_task(command="inspect_project"):
-    return Task(id="TASK-001", name="Capability test", description="Test capability execution", command=command, requires_permission=False)
+def make_task(command="inspect_project", description="Test capability execution"):
+    return Task(id="TASK-001", name="Capability test", description=description, command=command, requires_permission=False)
 
 
-def make_plan(action="inspect_project"):
-    return {"status": "READY", "plan_id": "PLAN-CAP-001", "goal": "Capability verification", "tasks": [{"id": "TASK-001", "title": "Capability", "description": "Test", "action": action, "requires_permission": False}]}
+def make_plan(action="inspect_project", description="Test"):
+    return {"status": "READY", "plan_id": "PLAN-CAP-001", "goal": "Capability verification", "tasks": [{"id": "TASK-001", "title": "Capability", "description": description, "action": action, "requires_permission": False}]}
 
 
 def test_capability_result_contract_serializes():
@@ -39,7 +39,7 @@ def test_registry_rejects_unknown_capability():
 
 def test_default_executor_registers_real_routes(tmp_path: Path):
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
-    assert executor.registry.names == ("git_status", "project_inspection", "test_runner")
+    assert executor.registry.names == ("git_status", "project_inspection", "project_search", "test_runner")
     result = executor.execute("project_inspection", make_task())
     assert isinstance(result, CapabilityResult)
     assert result.ok is True
@@ -58,6 +58,45 @@ def test_successful_inspection_completed(tmp_path: Path):
     result = EmpireOrchestrator(EmpireCapabilityExecutor(project_root=tmp_path)).execute_plan(make_plan("inspect_project"))
     assert result["status"] == OrchestrationStatus.COMPLETED.value
     assert result["completed_tasks"] == 1
+
+
+def test_project_search_finds_matching_lines(tmp_path: Path):
+    source = tmp_path / "app.py"
+    source.write_text("def hello():\n    return 'hello world'\n", encoding="utf-8")
+    result = EmpireCapabilityExecutor(project_root=tmp_path).execute("project_search", make_task("project_search", "Execute planned step: hello"))
+    assert result.ok is True
+    assert result.data["query"] == "hello"
+    assert result.data["matches"] == [
+        {"file": "app.py", "line": 1, "text": "def hello():"},
+        {"file": "app.py", "line": 2, "text": "    return 'hello world'"},
+    ]
+    assert result.data["truncated"] is False
+
+
+def test_project_search_completed_and_audited(tmp_path: Path):
+    (tmp_path / "app.py").write_text("CapabilityResult\n", encoding="utf-8")
+    result = EmpireOrchestrator(EmpireCapabilityExecutor(project_root=tmp_path)).execute_plan(
+        make_plan("project_search", "Execute planned step: CapabilityResult")
+    )
+    assert result["status"] == OrchestrationStatus.COMPLETED.value
+    assert result["completed_tasks"] == 1
+    audit = result["audit"][0]
+    assert audit["capability"] == "project_search"
+    assert audit["verified"] is True
+    assert audit["result"]["data"]["matches"][0]["file"] == "app.py"
+
+
+def test_project_search_malformed_result_failed(tmp_path: Path):
+    class MalformedExecutor(EmpireCapabilityExecutor):
+        def execute(self, capability, task):
+            if capability == "project_search":
+                return CapabilityResult(True, "project_search", {"matches": "invalid"})
+            return super().execute(capability, task)
+
+    result = EmpireOrchestrator(MalformedExecutor()).execute_plan(
+        make_plan("project_search", "Execute planned step: hello")
+    )
+    assert result["status"] == OrchestrationStatus.FAILED.value
 
 
 def test_passing_tests_completed(monkeypatch, tmp_path: Path):
