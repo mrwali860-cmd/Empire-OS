@@ -10,14 +10,13 @@ from .llm import LLMClient, LLMConfigError, LLMProviderError
 class IntentDetector:
     """Classify user intent with an LLM and a deterministic fallback."""
 
-    ALLOWED_INTENTS = {
-        "CLIENT_ACQUISITION", "REVENUE_GROWTH", "SYSTEM_BUILDING", "MARKETING", "HIRING", "GIT_STATUS", "PROJECT_SEARCH", "FILE_READ", "UNKNOWN"
-    }
+    ALLOWED_INTENTS = {"CLIENT_ACQUISITION", "REVENUE_GROWTH", "SYSTEM_BUILDING", "MARKETING", "HIRING", "GIT_STATUS", "PROJECT_SEARCH", "FILE_READ", "FILE_WRITE", "UNKNOWN"}
 
     KEYWORDS = {
         "GIT_STATUS": ("git status", "repository status", "repo status", "working tree", "changed files", "branch status"),
         "PROJECT_SEARCH": ("search project", "search code", "find in project", "find in code", "search repository", "find code"),
         "FILE_READ": ("read file", "open file", "show file", "view file", "display file"),
+        "FILE_WRITE": ("write file", "create file", "save file", "update file"),
         "CLIENT_ACQUISITION": ("client", "customer", "prospect", "lead"),
         "REVENUE_GROWTH": ("revenue", "income", "sales", "profit"),
         "SYSTEM_BUILDING": ("system", "software", "platform", "build"),
@@ -40,7 +39,7 @@ class IntentDetector:
         if not text:
             return "UNKNOWN"
         deterministic_intent = self._fallback(text)
-        if deterministic_intent in {"GIT_STATUS", "PROJECT_SEARCH", "FILE_READ"}:
+        if deterministic_intent in {"GIT_STATUS", "PROJECT_SEARCH", "FILE_READ", "FILE_WRITE"}:
             print(f"Intent Source: DETERMINISTIC_FALLBACK ({deterministic_intent})")
             return deterministic_intent
         try:
