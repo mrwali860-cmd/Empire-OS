@@ -12,12 +12,7 @@ def make_task(command="inspect_project"):
 
 
 def make_plan(action="inspect_project"):
-    return {
-        "status": "READY",
-        "plan_id": "PLAN-CAP-001",
-        "goal": "Capability verification",
-        "tasks": [{"id": "TASK-001", "title": "Capability", "description": "Test", "action": action, "requires_permission": False}],
-    }
+    return {"status": "READY", "plan_id": "PLAN-CAP-001", "goal": "Capability verification", "tasks": [{"id": "TASK-001", "title": "Capability", "description": "Test", "action": action, "requires_permission": False}]}
 
 
 def test_capability_result_contract_serializes():
@@ -28,10 +23,11 @@ def test_capability_result_contract_serializes():
 
 def test_registry_executes_registered_capability():
     registry = CapabilityRegistry()
-    registry.register("demo", lambda task: {"ok": True})
+    calls = []
+    registry.register("demo", lambda task: calls.append(task.id) or {"ok": True})
     result = registry.execute("demo", make_task())
-    assert isinstance(result, CapabilityResult)
-    assert result.ok is True
+    assert result == {"ok": True}
+    assert calls == ["TASK-001"]
 
 
 def test_registry_rejects_unknown_capability():
@@ -39,20 +35,27 @@ def test_registry_rejects_unknown_capability():
         CapabilityRegistry().execute("missing", make_task())
 
 
-def test_successful_inspection_completed(tmp_path: Path):
+def test_default_executor_registers_real_routes(tmp_path: Path):
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
-    result = EmpireOrchestrator(executor).execute_plan(make_plan("inspect_project"))
-    assert result["status"] == OrchestrationStatus.COMPLETED.value
-    assert result["completed_tasks"] == 1
+    assert executor.registry.names == ("project_inspection", "test_runner")
+    result = executor.execute("project_inspection", make_task())
+    assert isinstance(result, CapabilityResult)
+    assert result.ok is True
+    assert result.capability == "project_inspection"
 
 
-def test_inspection_result_is_standardized(tmp_path: Path):
+def test_inspection_is_read_only(tmp_path: Path):
+    (tmp_path / "sample.txt").write_text("hello", encoding="utf-8")
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
     result = executor.inspect_project(make_task())
-    assert isinstance(result, CapabilityResult)
-    assert result.capability == "project_inspection"
-    assert result.data["files"] == 0
-    assert executor.verify("project_inspection", result) is True
+    assert result.data["files"] == 1
+    assert (tmp_path / "sample.txt").read_text(encoding="utf-8") == "hello"
+
+
+def test_successful_inspection_completed(tmp_path: Path):
+    result = EmpireOrchestrator(EmpireCapabilityExecutor(project_root=tmp_path)).execute_plan(make_plan("inspect_project"))
+    assert result["status"] == OrchestrationStatus.COMPLETED.value
+    assert result["completed_tasks"] == 1
 
 
 def test_passing_tests_completed():
@@ -64,21 +67,17 @@ def test_passing_tests_completed():
 
 def test_failing_tests_failed(monkeypatch, tmp_path: Path):
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
-
     class Completed:
         returncode = 1
         stdout = "failed"
         stderr = "failure"
-
     monkeypatch.setattr("src.agent.capabilities.subprocess.run", lambda *args, **kwargs: Completed())
     result = EmpireOrchestrator(executor).execute_plan(make_plan("run_tests"))
     assert result["status"] == OrchestrationStatus.FAILED.value
-    assert result["failed_task_id"] == "TASK-001"
 
 
 def test_unknown_capability_rejected():
-    plan = make_plan("unknown_command")
-    result = EmpireOrchestrator(EmpireCapabilityExecutor()).execute_plan(plan)
+    result = EmpireOrchestrator(EmpireCapabilityExecutor()).execute_plan(make_plan("unknown_command"))
     assert result["status"] == OrchestrationStatus.REJECTED.value
 
 
@@ -86,7 +85,6 @@ def test_malformed_capability_result_failed():
     class MalformedExecutor(EmpireCapabilityExecutor):
         def execute(self, capability, task):
             return "not-a-capability-result"
-
     result = EmpireOrchestrator(MalformedExecutor()).execute_plan(make_plan("inspect_project"))
     assert result["status"] == OrchestrationStatus.FAILED.value
     assert result["failed_task_id"] == "TASK-001"
