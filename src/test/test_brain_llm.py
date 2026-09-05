@@ -1,5 +1,6 @@
 """Tests for LLM-backed Brain reasoning and deterministic fallback."""
 
+from src.brain.llm import LLMProviderError
 from src.brain.pipeline import BrainPipeline
 
 
@@ -36,7 +37,7 @@ def test_pipeline_uses_valid_llm_reasoning():
 
 
 def test_pipeline_falls_back_when_llm_fails():
-    llm = FakeLLM(error=RuntimeError("provider unavailable"))
+    llm = FakeLLM(error=LLMProviderError("provider unavailable"))
 
     pipeline = BrainPipeline(llm=llm)
     result = pipeline.process("I need my first client for my agency")
