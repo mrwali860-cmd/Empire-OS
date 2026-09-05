@@ -25,6 +25,8 @@ class ExecutionPlanner:
     """Convert an approved decision into a safe execution contract."""
 
     ACTION_RULES = (
+        ("read file", "file_read", False),
+        ("open file", "file_read", False),
         ("git status", "git_status", False),
         ("repository status", "git_status", False),
         ("search project", "project_search", False),
