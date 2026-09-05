@@ -17,6 +17,9 @@ class ResponseBuilder:
         if plan.get("plan_id"):
             lines.append(f"Plan ID: {plan['plan_id']}")
 
+        if plan.get("goal"):
+            lines.append(f"Goal: {plan['goal']}")
+
         if isinstance(tasks, list):
             for index, task in enumerate(tasks, start=1):
                 if isinstance(task, dict):
