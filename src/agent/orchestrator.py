@@ -1,9 +1,9 @@
 """
 Empire OS
-Task Orchestrator — v0.4
+Task Orchestrator — v0.5
 
 Flow:
-Plan → Route → Permission → Execute → Verify → Next Task
+Plan → Route → Permission → Execute → Verify → Evidence → Next Task
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
 
-from .capabilities import EmpireCapabilityExecutor
+from .capabilities import CapabilityResult, EmpireCapabilityExecutor
 from .tasks import Task
 
 
@@ -68,6 +68,12 @@ class EmpireOrchestrator:
             requires_permission=bool(raw.get("requires_permission", True)),
         )
 
+    @staticmethod
+    def _evidence(output: Any) -> dict[str, Any] | None:
+        if isinstance(output, CapabilityResult):
+            return output.to_dict()
+        return None
+
     def execute_plan(
         self,
         plan: dict[str, Any],
@@ -76,12 +82,12 @@ class EmpireOrchestrator:
         verifier: Callable[[Task, Any], bool] | None = None,
         approved: bool = False,
     ) -> dict[str, Any]:
-        """Execute tasks sequentially and verify capability evidence."""
+        """Execute tasks sequentially, verify capability evidence, and retain it."""
         if plan.get("status") != "READY":
-            return {"status": "failed", "plan_id": plan.get("plan_id"), "goal": plan.get("goal", ""), "completed_tasks": 0, "failed_task_id": None, "error": "Plan is not READY."}
+            return {"status": "failed", "plan_id": plan.get("plan_id"), "goal": plan.get("goal", ""), "completed_tasks": 0, "failed_task_id": None, "error": "Plan is not READY.", "capability_results": []}
 
         tasks = [self._task_from_plan(raw) for raw in plan.get("tasks", [])]
-        result = {"status": "running", "plan_id": plan.get("plan_id"), "goal": plan.get("goal", ""), "completed_tasks": 0, "failed_task_id": None, "error": None}
+        result = {"status": "running", "plan_id": plan.get("plan_id"), "goal": plan.get("goal", ""), "completed_tasks": 0, "failed_task_id": None, "error": None, "capability_results": []}
 
         for task in tasks:
             route = self.route(task)
@@ -95,6 +101,9 @@ class EmpireOrchestrator:
             try:
                 task.start()
                 output = executor(task) if executor is not None else self.capability_executor.execute(route.capability, task)
+                evidence = self._evidence(output)
+                if evidence is not None:
+                    result["capability_results"].append(evidence)
                 result["status"] = "verifying"
                 if verifier is not None:
                     verified = verifier(task, output)
