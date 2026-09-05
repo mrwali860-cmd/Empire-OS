@@ -11,17 +11,12 @@ class IntentDetector:
     """Classify user intent with an LLM and a deterministic fallback."""
 
     ALLOWED_INTENTS = {
-        "CLIENT_ACQUISITION",
-        "REVENUE_GROWTH",
-        "SYSTEM_BUILDING",
-        "MARKETING",
-        "HIRING",
-        "GIT_STATUS",
-        "UNKNOWN",
+        "CLIENT_ACQUISITION", "REVENUE_GROWTH", "SYSTEM_BUILDING", "MARKETING", "HIRING", "GIT_STATUS", "PROJECT_SEARCH", "UNKNOWN"
     }
 
     KEYWORDS = {
         "GIT_STATUS": ("git status", "repository status", "repo status", "working tree", "changed files", "branch status"),
+        "PROJECT_SEARCH": ("search project", "search code", "find in project", "find in code", "search repository", "find code"),
         "CLIENT_ACQUISITION": ("client", "customer", "prospect", "lead"),
         "REVENUE_GROWTH": ("revenue", "income", "sales", "profit"),
         "SYSTEM_BUILDING": ("system", "software", "platform", "build"),
@@ -40,16 +35,13 @@ class IntentDetector:
         return "UNKNOWN"
 
     def detect(self, user_input: str) -> str:
-        """Return a normalized intent; deterministic capability signals take precedence."""
         text = (user_input or "").strip()
         if not text:
             return "UNKNOWN"
-
         deterministic_intent = self._fallback(text)
-        if deterministic_intent == "GIT_STATUS":
-            print("Intent Source: DETERMINISTIC_FALLBACK (GIT_STATUS)")
+        if deterministic_intent in {"GIT_STATUS", "PROJECT_SEARCH"}:
+            print(f"Intent Source: DETERMINISTIC_FALLBACK ({deterministic_intent})")
             return deterministic_intent
-
         try:
             result: dict[str, Any] = self.llm.classify_intent(text)
             intent = str(result.get("intent", "UNKNOWN")).upper().strip()
@@ -59,6 +51,5 @@ class IntentDetector:
                 return intent
         except (LLMConfigError, LLMProviderError, ValueError, TypeError, KeyError) as exc:
             print(f"LLM intent unavailable: {exc}")
-
         print(f"Intent Source: DETERMINISTIC_FALLBACK ({deterministic_intent})")
         return deterministic_intent
