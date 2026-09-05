@@ -5,7 +5,7 @@ class BusinessThinking:
         if intent == "GIT_STATUS":
             return (
                 "Goal: Check repository status\n"
-                "Step 1: Check Git status"
+                "1. Check Git status"
             )
 
         if intent == "CLIENT_ACQUISITION":
