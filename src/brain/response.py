@@ -4,7 +4,7 @@
 class ResponseBuilder:
     """Turn a validated plan into a readable execution contract."""
 
-    def build(self, plan, context):
+    def build(self, plan, context, orchestration_result=None):
         if plan["status"] != "READY":
             return "Unable to generate a response."
 
@@ -36,10 +36,23 @@ class ResponseBuilder:
         else:
             lines.append(str(tasks))
 
+        if orchestration_result is not None:
+            lines.extend(
+                [
+                    "",
+                    f"Execution Status: {str(orchestration_result.get('status', 'unknown')).upper()}",
+                    f"Completed Tasks: {orchestration_result.get('completed_tasks', 0)}",
+                ]
+            )
+            if orchestration_result.get("failed_task_id"):
+                lines.append(f"Failed Task: {orchestration_result['failed_task_id']}")
+            if orchestration_result.get("error"):
+                lines.append(f"Execution Error: {orchestration_result['error']}")
+
         lines.extend(
             [
                 "",
-                "Status: READY FOR EXECUTION",
+                "Status: READY FOR EXECUTION" if orchestration_result is None else "Status: EXECUTION PROCESSED",
                 f"Verification: {'REQUIRED' if plan.get('verification_required', True) else 'OPTIONAL'}",
                 "===============================",
                 "",
