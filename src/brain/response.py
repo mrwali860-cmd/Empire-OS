@@ -53,6 +53,11 @@ class ResponseBuilder:
                         lines.append(f"      Directories: {data.get('directories', 'unknown')}")
                     elif capability == "test_runner":
                         lines.append(f"      Return Code: {data.get('return_code', 'unknown')}")
+                    elif capability == "git_status":
+                        lines.append(f"      Branch: {data.get('branch', 'unknown')}")
+                        lines.append(f"      Clean: {data.get('clean', 'unknown')}")
+                        lines.append(f"      Changed Files: {len(data.get('changed_files', []))}")
+                        lines.append(f"      Commit SHA: {data.get('commit_sha', 'unknown')}")
                     if capability_result.get("error"):
                         lines.append(f"      Error: {capability_result['error']}")
             audit = orchestration_result.get("audit", [])
