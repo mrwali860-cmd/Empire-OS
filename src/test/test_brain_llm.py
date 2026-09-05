@@ -126,21 +126,14 @@ def test_failed_llm_intent_uses_keyword_fallback():
 
 def test_repository_status_uses_deterministic_brain_route():
     llm = FakeLLM(
-        output={
-            "goal": "Check repository status",
-            "assumptions": [],
-            "constraints": [],
-            "next_actions": ["Check Git status"],
-            "confidence": 0.95,
-        },
+        output=None,
         intent_output={"intent": "UNKNOWN", "confidence": 0.99},
     )
     pipeline = BrainPipeline(llm=llm)
 
+    result = pipeline.process("Check my repository status")
+
     assert pipeline.intent.detect("Check my repository status") == "GIT_STATUS"
-    thinking = pipeline.thinking.think("GIT_STATUS", {})
-    assert "Step 1: Check Git status" in thinking
-    plan = pipeline.planner.plan(pipeline.decision.decide(pipeline.reasoning.reason(
-        "Check my repository status", "GIT_STATUS", {}, thinking
-    ).summary()))
-    assert plan["tasks"][0]["action"] == "git_status"
+    assert "Goal: Check my repository status" in result
+    assert "Check Git status" in result
+    assert "git_status" in result
