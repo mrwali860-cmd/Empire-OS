@@ -58,13 +58,9 @@ class ReasoningEngine:
         constraints: list[str] = []
 
         if context.get("experience") != "UNKNOWN":
-            assumptions.append(
-                f"Experience level is {context['experience']}"
-            )
+            assumptions.append(f"Experience level is {context['experience']}")
         if context.get("business") != "UNKNOWN":
-            assumptions.append(
-                f"Business type is {context['business']}"
-            )
+            assumptions.append(f"Business type is {context['business']}")
         if context.get("urgency") == "HIGH":
             constraints.append("High urgency")
         if context.get("budget") != "UNKNOWN":
@@ -78,7 +74,9 @@ class ReasoningEngine:
             if line.strip()[:2].isdigit() and line.strip()[2:3] == "."
         )
 
-        if not actions:
+        if intent == "GIT_STATUS":
+            actions = ("Check Git status",)
+        elif not actions:
             actions = (
                 "Clarify the objective and success criteria",
                 "Choose the smallest executable next step",
