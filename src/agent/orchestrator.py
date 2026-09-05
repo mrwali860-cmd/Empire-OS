@@ -1,6 +1,6 @@
 """
 Empire OS
-Task Orchestrator — v0.5
+Task Orchestrator — v0.6
 
 Flow:
 Plan → Route → Permission → Execute → Verify → Evidence → Next Task
@@ -74,6 +74,25 @@ class EmpireOrchestrator:
             return output.to_dict()
         return None
 
+    def _verify_output(
+        self,
+        capability: str,
+        output: Any,
+        verifier: Callable[[Task, Any], bool] | None,
+        task: Task,
+        *,
+        injected_executor: bool,
+    ) -> bool:
+        if verifier is not None:
+            return bool(verifier(task, output))
+        if isinstance(output, CapabilityResult):
+            return bool(self.capability_executor.verify(capability, output))
+        if injected_executor and isinstance(output, dict):
+            # Preserve the historical callable-executor contract while keeping
+            # malformed non-contract values fail-closed.
+            return True
+        return False
+
     def execute_plan(
         self,
         plan: dict[str, Any],
@@ -105,12 +124,7 @@ class EmpireOrchestrator:
                 if evidence is not None:
                     result["capability_results"].append(evidence)
                 result["status"] = "verifying"
-                if verifier is not None:
-                    verified = verifier(task, output)
-                elif hasattr(self.capability_executor, "verify"):
-                    verified = self.capability_executor.verify(route.capability, output)
-                else:
-                    verified = output is not None
+                verified = self._verify_output(route.capability, output, verifier, task, injected_executor=executor is not None)
                 if not verified:
                     task.fail("Task verification failed.")
                     result.update(status="failed", failed_task_id=task.id, error="Task verification failed.")
