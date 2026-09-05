@@ -116,15 +116,40 @@ def test_capability_verifier_rejects_wrong_capability(tmp_path: Path):
     assert executor.verify("project_inspection", result) is False
 
 
-def test_git_status_returns_read_only_evidence():
-    executor = EmpireCapabilityExecutor()
-    result = executor.execute("git_status", make_task("git_status"))
+def _mock_git(monkeypatch, branch="main", commit_sha="a" * 40, porcelain=""):
+    outputs = {
+        ("rev-parse", "--abbrev-ref", "HEAD"): branch + "\n",
+        ("rev-parse", "HEAD"): commit_sha + "\n",
+        ("status", "--porcelain"): porcelain,
+    }
+
+    class Completed:
+        def __init__(self, stdout):
+            self.stdout = stdout
+
+    def fake_run(command, **kwargs):
+        return Completed(outputs[tuple(command[1:])])
+
+    monkeypatch.setattr("src.agent.git_status.subprocess.run", fake_run)
+
+
+def test_git_status_clean_repository_evidence(monkeypatch, tmp_path: Path):
+    _mock_git(monkeypatch, porcelain="")
+    result = EmpireCapabilityExecutor(project_root=tmp_path).execute("git_status", make_task("git_status"))
     assert result.ok is True
-    assert result.capability == "git_status"
-    assert isinstance(result.data["branch"], str)
-    assert isinstance(result.data["clean"], bool)
-    assert isinstance(result.data["changed_files"], list)
+    assert result.data["branch"] == "main"
+    assert result.data["clean"] is True
+    assert result.data["changed_files"] == []
     assert len(result.data["commit_sha"]) == 40
+
+
+def test_git_status_dirty_repository_evidence(monkeypatch, tmp_path: Path):
+    _mock_git(monkeypatch, porcelain=" M src/app.py\n?? notes.txt\n")
+    result = EmpireCapabilityExecutor(project_root=tmp_path).execute("git_status", make_task("git_status"))
+    assert result.ok is True
+    assert result.data["clean"] is False
+    assert result.data["changed_files"] == ["src/app.py", "notes.txt"]
+    assert EmpireCapabilityExecutor(project_root=tmp_path).verify("git_status", result) is True
 
 
 def test_git_status_completed_and_audited():
