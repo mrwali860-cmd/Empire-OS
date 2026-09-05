@@ -20,8 +20,8 @@ class GitStatusCapability:
         from .capabilities import CapabilityResult
 
         try:
-            branch = self._git(["rev-parse", "--abbrev-ref", "HEAD"])
-            commit_sha = self._git(["rev-parse", "HEAD"])
+            branch = self._git(["rev-parse", "--abbrev-ref", "HEAD"]).strip()
+            commit_sha = self._git(["rev-parse", "HEAD"]).strip()
             porcelain = self._git(["status", "--porcelain"])
         except (OSError, subprocess.CalledProcessError) as exc:
             return CapabilityResult(
@@ -48,4 +48,4 @@ class GitStatusCapability:
             capture_output=True,
             text=True,
         )
-        return completed.stdout.strip()
+        return completed.stdout.rstrip("\r\n")
