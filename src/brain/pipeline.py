@@ -63,8 +63,9 @@ class BrainPipeline:
     def process(self, user_input, *, execute=False, approved=False, executor=None, task_verifier=None):
         """Process a request and optionally execute its validated plan.
 
-        Execution is opt-in. Without ``execute=True`` the method preserves the
-        existing response-only behavior and never triggers side effects.
+        Execution is opt-in. When enabled, the orchestrator uses its
+        allow-listed capability layer unless an executor is explicitly
+        injected for testing or specialized integrations.
         """
         print("Pipeline Started")
 
@@ -99,8 +100,6 @@ class BrainPipeline:
 
         orchestration_result = None
         if execute and plan.get("status") == "READY":
-            if executor is None:
-                raise ValueError("executor is required when execute=True")
             orchestration_result = self.orchestrator.execute_plan(
                 plan,
                 executor=executor,
