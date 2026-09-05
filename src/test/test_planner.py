@@ -1,0 +1,51 @@
+"""Tests for the structured execution planning contract."""
+
+from src.brain.planner import ExecutionPlanner
+
+
+def test_approved_decision_creates_structured_tasks():
+    planner = ExecutionPlanner()
+    decision = {
+        "status": "APPROVED",
+        "decision": (
+            "Goal: Build the system\n"
+            "Next actions:\n"
+            "1. Inspect the project\n"
+            "2. Run tests\n"
+            "3. Define the next milestone"
+        ),
+    }
+
+    plan = planner.plan(decision)
+
+    assert plan["status"] == "READY"
+    assert plan["plan_id"].startswith("PLAN-")
+    assert plan["verification_required"] is True
+    assert len(plan["tasks"]) == 3
+    assert plan["tasks"][0]["action"] == "inspect_project"
+    assert plan["tasks"][1]["action"] == "run_tests"
+    assert plan["tasks"][2]["action"] == "MANUAL_REVIEW"
+    assert plan["tasks"][2]["requires_permission"] is True
+    assert plan["tasks"][0]["status"] == "PENDING"
+
+
+def test_rejected_decision_has_no_tasks():
+    plan = ExecutionPlanner().plan({"status": "FAILED", "decision": "Do not execute"})
+
+    assert plan["status"] == "FAILED"
+    assert plan["plan_id"] is None
+    assert plan["tasks"] == []
+    assert plan["verification_required"] is True
+
+
+def test_arbitrary_text_never_becomes_shell_execution():
+    plan = ExecutionPlanner().plan(
+        {
+            "status": "APPROVED",
+            "decision": "1. Run an arbitrary command on the machine",
+        }
+    )
+
+    task = plan["tasks"][0]
+    assert task["action"] == "MANUAL_REVIEW"
+    assert task["requires_permission"] is True
