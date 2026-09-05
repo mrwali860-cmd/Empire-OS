@@ -26,7 +26,9 @@ def test_registry_executes_registered_capability():
     calls = []
     registry.register("demo", lambda task: calls.append(task.id) or {"ok": True})
     result = registry.execute("demo", make_task())
-    assert result == {"ok": True}
+    assert isinstance(result, CapabilityResult)
+    assert result.ok is True
+    assert result.capability == "demo"
     assert calls == ["TASK-001"]
 
 
@@ -58,8 +60,15 @@ def test_successful_inspection_completed(tmp_path: Path):
     assert result["completed_tasks"] == 1
 
 
-def test_passing_tests_completed():
-    executor = EmpireCapabilityExecutor(project_root=Path(__file__).resolve().parents[2])
+def test_passing_tests_completed(monkeypatch, tmp_path: Path):
+    executor = EmpireCapabilityExecutor(project_root=tmp_path)
+
+    class Completed:
+        returncode = 0
+        stdout = "1 passed"
+        stderr = ""
+
+    monkeypatch.setattr("src.agent.capabilities.subprocess.run", lambda *args, **kwargs: Completed())
     result = EmpireOrchestrator(executor).execute_plan(make_plan("run_tests"))
     assert result["status"] == OrchestrationStatus.COMPLETED.value
     assert result["completed_tasks"] == 1
@@ -67,10 +76,12 @@ def test_passing_tests_completed():
 
 def test_failing_tests_failed(monkeypatch, tmp_path: Path):
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
+
     class Completed:
         returncode = 1
         stdout = "failed"
         stderr = "failure"
+
     monkeypatch.setattr("src.agent.capabilities.subprocess.run", lambda *args, **kwargs: Completed())
     result = EmpireOrchestrator(executor).execute_plan(make_plan("run_tests"))
     assert result["status"] == OrchestrationStatus.FAILED.value
@@ -81,10 +92,19 @@ def test_unknown_capability_rejected():
     assert result["status"] == OrchestrationStatus.REJECTED.value
 
 
+def test_unregistered_capability_route_rejected():
+    orchestrator = EmpireOrchestrator(EmpireCapabilityExecutor())
+    orchestrator.routes["inspect_project"] = "missing_capability"
+    result = orchestrator.execute_plan(make_plan("inspect_project"))
+    assert result["status"] == OrchestrationStatus.REJECTED.value
+    assert result["failed_task_id"] == "TASK-001"
+
+
 def test_malformed_capability_result_failed():
     class MalformedExecutor(EmpireCapabilityExecutor):
         def execute(self, capability, task):
             return "not-a-capability-result"
+
     result = EmpireOrchestrator(MalformedExecutor()).execute_plan(make_plan("inspect_project"))
     assert result["status"] == OrchestrationStatus.FAILED.value
     assert result["failed_task_id"] == "TASK-001"
