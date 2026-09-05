@@ -63,6 +63,16 @@ class ReasoningEngine:
                 return normalized[len(prefix):].strip()
         return normalized
 
+    @staticmethod
+    def _file_path(text: str) -> str:
+        normalized = text.strip()
+        prefixes = ("read file ", "open file ", "show file ", "view file ", "display file ")
+        lowered = normalized.lower()
+        for prefix in prefixes:
+            if lowered.startswith(prefix):
+                return normalized[len(prefix):].strip()
+        return normalized
+
     def reason(
         self,
         user_input: str,
@@ -96,6 +106,9 @@ class ReasoningEngine:
         elif intent == "PROJECT_SEARCH":
             query = self._project_search_query(text)
             actions = (f"Search project source files for: {query}",)
+        elif intent == "FILE_READ":
+            path = self._file_path(text)
+            actions = (f"Read file: {path}",)
         elif not actions:
             actions = (
                 "Clarify the objective and success criteria",
