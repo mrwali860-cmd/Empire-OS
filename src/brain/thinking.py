@@ -2,6 +2,12 @@ class BusinessThinking:
 
     def think(self, intent, context):
 
+        if intent == "GIT_STATUS":
+            return (
+                "Goal: Check repository status\n"
+                "Step 1: Check Git status"
+            )
+
         if intent == "CLIENT_ACQUISITION":
 
             if context.get("experience") == "BEGINNER":
