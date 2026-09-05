@@ -29,6 +29,27 @@ def test_approved_decision_creates_structured_tasks():
     assert plan["tasks"][0]["status"] == "PENDING"
 
 
+def test_git_status_action_maps_to_capability():
+    plan = ExecutionPlanner().plan(
+        {
+            "status": "APPROVED",
+            "decision": "Goal: Check repository status\n1. Check Git status",
+        }
+    )
+    assert plan["tasks"][0]["action"] == "git_status"
+    assert plan["tasks"][0]["requires_permission"] is False
+
+
+def test_repository_status_action_maps_to_capability():
+    plan = ExecutionPlanner().plan(
+        {
+            "status": "APPROVED",
+            "decision": "Goal: Check repository status\n1. Check repository status",
+        }
+    )
+    assert plan["tasks"][0]["action"] == "git_status"
+
+
 def test_rejected_decision_has_no_tasks():
     plan = ExecutionPlanner().plan({"status": "FAILED", "decision": "Do not execute"})
 
