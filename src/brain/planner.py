@@ -43,6 +43,14 @@ class ExecutionPlanner:
         return f"PLAN-{digest}"
 
     @staticmethod
+    def _extract_goal(decision_text: str) -> str:
+        for line in decision_text.splitlines():
+            match = re.match(r"^\s*Goal:\s*(.+?)\s*$", line, flags=re.IGNORECASE)
+            if match:
+                return match.group(1)
+        return ""
+
+    @staticmethod
     def _extract_actions(decision_text: str) -> list[str]:
         actions = []
         for line in decision_text.splitlines():
@@ -66,6 +74,7 @@ class ExecutionPlanner:
             return {
                 "status": "FAILED",
                 "plan_id": None,
+                "goal": "",
                 "tasks": [],
                 "verification_required": True,
             }
@@ -73,6 +82,7 @@ class ExecutionPlanner:
         decision_text = str(decision.get("decision", "")).strip()
         actions = self._extract_actions(decision_text)
         plan_id = self._plan_id(decision_text)
+        goal = self._extract_goal(decision_text)
         tasks = []
 
         for index, title in enumerate(actions, start=1):
@@ -91,6 +101,7 @@ class ExecutionPlanner:
         return {
             "status": "READY",
             "plan_id": plan_id,
+            "goal": goal,
             "tasks": tasks,
             "verification_required": True,
         }
