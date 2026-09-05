@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from .git_status import GitStatusCapability
 from .tasks import Task
 
 CapabilityHandler = Callable[[Task], Any]
@@ -73,6 +74,7 @@ class EmpireCapabilityExecutor:
         self.registry = CapabilityRegistry()
         self.registry.register("project_inspection", self.inspect_project)
         self.registry.register("test_runner", self.run_tests)
+        self.registry.register("git_status", GitStatusCapability(self.project_root).execute)
 
     def execute(self, capability: str, task: Task) -> CapabilityResult:
         return self.registry.execute(capability, task)
@@ -87,6 +89,16 @@ class EmpireCapabilityExecutor:
             return isinstance(data.get("files"), int) and data["files"] >= 0 and isinstance(data.get("directories"), int) and data["directories"] >= 0
         if capability == "test_runner":
             return data.get("return_code") == 0
+        if capability == "git_status":
+            return (
+                isinstance(data.get("branch"), str)
+                and bool(data["branch"])
+                and isinstance(data.get("clean"), bool)
+                and isinstance(data.get("changed_files"), list)
+                and all(isinstance(path, str) for path in data["changed_files"])
+                and isinstance(data.get("commit_sha"), str)
+                and len(data["commit_sha"]) == 40
+            )
         return False
 
     def inspect_project(self, task: Task) -> CapabilityResult:
