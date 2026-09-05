@@ -55,6 +55,17 @@ class ResponseBuilder:
                         lines.append(f"      Return Code: {data.get('return_code', 'unknown')}")
                     if capability_result.get("error"):
                         lines.append(f"      Error: {capability_result['error']}")
+            audit = orchestration_result.get("audit", [])
+            if audit:
+                lines.append(f"Audit Records: {len(audit)}")
+                for index, record in enumerate(audit, start=1):
+                    lines.append(
+                        f"   Audit {index}: {record.get('task_id', 'unknown')} → "
+                        f"{str(record.get('status', 'unknown')).upper()} / "
+                        f"{'VERIFIED' if record.get('verified') else 'UNVERIFIED'}"
+                    )
+                    if record.get("error"):
+                        lines.append(f"      Error: {record['error']}")
             if orchestration_result.get("failed_task_id"):
                 lines.append(f"Failed Task: {orchestration_result['failed_task_id']}")
             if orchestration_result.get("error"):
