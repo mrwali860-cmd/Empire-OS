@@ -13,13 +13,13 @@ from .reasoning import ReasoningEngine, ReasoningVerifier, ReasoningResult
 class BrainPipeline:
     """Process requests through LLM reasoning with a deterministic fallback."""
 
-    def __init__(self, llm=None):
-        self.intent = IntentDetector()
+    def __init__(self, llm=None, intent_llm=None):
+        self.llm = llm or LLMClient()
+        self.intent = IntentDetector(llm=intent_llm or self.llm)
         self.context = ContextAnalyzer()
         self.thinking = BusinessThinking()
         self.reasoning = ReasoningEngine()
         self.verifier = ReasoningVerifier()
-        self.llm = llm or LLMClient()
         self.decision = DecisionEngine()
         self.planner = ExecutionPlanner()
         self.response = ResponseBuilder()
