@@ -16,13 +16,26 @@ class ProjectSearchCapability:
     def __init__(self, project_root: str | Path) -> None:
         self.project_root = Path(project_root).resolve()
 
-    def execute(self, task: Any = None):
-        from .capabilities import CapabilityResult
-
-        query = str(getattr(task, "description", "")).strip()
+    @staticmethod
+    def _extract_query(description: str) -> str:
+        query = description.strip()
         prefix = "Execute planned step: "
         if query.lower().startswith(prefix.lower()):
             query = query[len(prefix):].strip()
+
+        marker = " for:"
+        lower_query = query.lower()
+        marker_index = lower_query.find(marker)
+        if marker_index >= 0:
+            query = query[marker_index + len(marker):].strip()
+
+        return query
+
+    def execute(self, task: Any = None):
+        from .capabilities import CapabilityResult
+
+        description = str(getattr(task, "description", ""))
+        query = self._extract_query(description)
         if not query:
             return CapabilityResult(False, self.name, {}, "Search query is required.")
 
@@ -39,11 +52,13 @@ class ProjectSearchCapability:
                     continue
                 for line_number, line in enumerate(text.splitlines(), start=1):
                     if query.lower() in line.lower():
-                        matches.append({
-                            "file": str(path.relative_to(self.project_root)),
-                            "line": line_number,
-                            "text": line[: self.MAX_LINE_LENGTH],
-                        })
+                        matches.append(
+                            {
+                                "file": str(path.relative_to(self.project_root)),
+                                "line": line_number,
+                                "text": line[: self.MAX_LINE_LENGTH],
+                            }
+                        )
                         if len(matches) >= self.MAX_MATCHES:
                             break
         except OSError as exc:
@@ -52,6 +67,11 @@ class ProjectSearchCapability:
         return CapabilityResult(
             True,
             self.name,
-            {"query": query, "matches": matches, "truncated": len(matches) >= self.MAX_MATCHES},
+            {
+                "query": query,
+                "matches": matches,
+                "match_count": len(matches),
+                "truncated": len(matches) >= self.MAX_MATCHES,
+            },
             None,
         )
