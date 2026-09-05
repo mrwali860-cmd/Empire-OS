@@ -29,7 +29,7 @@ class LLMClient:
     def available(self) -> bool:
         return bool(self.api_key)
 
-    def reason(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _request_json(self, *, instructions: str, payload: Any) -> dict[str, Any]:
         if not self.api_key:
             raise LLMConfigError(
                 "OPENAI_API_KEY is not configured; using deterministic fallback."
@@ -46,27 +46,44 @@ class LLMClient:
             client = OpenAI(api_key=self.api_key)
             response = client.responses.create(
                 model=self.model,
-                instructions=(
-                    "You are the reasoning core of Empire OS. "
-                    "Analyze the user's objective, use the supplied context, "
-                    "state assumptions and constraints, and produce a small "
-                    "testable action plan. Do not claim an action was executed. "
-                    "Return only valid JSON with keys: goal, assumptions, "
-                    "constraints, next_actions, confidence. confidence must be "
-                    "a number from 0 to 1 and next_actions must be a non-empty array."
-                ),
+                instructions=instructions,
                 input=json.dumps(payload, ensure_ascii=False),
             )
         except Exception as exc:
             raise LLMProviderError(f"LLM provider request failed: {exc}") from exc
 
-        raw = response.output_text.strip()
         try:
-            result = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise LLMProviderError("LLM returned non-JSON reasoning output.") from exc
+            result = json.loads(response.output_text.strip())
+        except (json.JSONDecodeError, AttributeError) as exc:
+            raise LLMProviderError("LLM returned non-JSON output.") from exc
 
         if not isinstance(result, dict):
-            raise LLMProviderError("LLM reasoning output must be a JSON object.")
-
+            raise LLMProviderError("LLM output must be a JSON object.")
         return result
+
+    def reason(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request_json(
+            instructions=(
+                "You are the reasoning core of Empire OS. "
+                "Analyze the user's objective, use the supplied context, "
+                "state assumptions and constraints, and produce a small "
+                "testable action plan. Do not claim an action was executed. "
+                "Return only valid JSON with keys: goal, assumptions, "
+                "constraints, next_actions, confidence. confidence must be "
+                "a number from 0 to 1 and next_actions must be a non-empty array."
+            ),
+            payload=payload,
+        )
+
+    def classify_intent(self, user_input: str) -> dict[str, Any]:
+        """Classify the user's primary intent into Empire OS intent labels."""
+        return self._request_json(
+            instructions=(
+                "You are the intent classifier for Empire OS. "
+                "Choose exactly one primary intent from: CLIENT_ACQUISITION, "
+                "REVENUE_GROWTH, SYSTEM_BUILDING, MARKETING, HIRING, UNKNOWN. "
+                "Return only valid JSON with keys intent and confidence. "
+                "confidence must be a number from 0 to 1."
+            ),
+            payload={"user_input": user_input},
+        )
