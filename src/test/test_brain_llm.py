@@ -28,16 +28,7 @@ class FakeLLM:
 
 
 def test_pipeline_uses_valid_llm_reasoning():
-    llm = FakeLLM(
-        output={
-            "goal": "Acquire the first client",
-            "assumptions": ["Business type is AGENCY"],
-            "constraints": ["Limited budget"],
-            "next_actions": ["Define offer", "Contact qualified prospects"],
-            "confidence": 0.91,
-        },
-        intent_output={"intent": "CLIENT_ACQUISITION", "confidence": 0.96},
-    )
+    llm = FakeLLM(output={"goal": "Acquire the first client", "assumptions": ["Business type is AGENCY"], "constraints": ["Limited budget"], "next_actions": ["Define offer", "Contact qualified prospects"], "confidence": 0.91}, intent_output={"intent": "CLIENT_ACQUISITION", "confidence": 0.96})
     pipeline = BrainPipeline(llm=llm)
     result = pipeline.process("I need my first client for my agency")
     assert llm.calls == 1
@@ -58,10 +49,7 @@ def test_pipeline_falls_back_when_llm_fails():
 
 
 def test_pipeline_falls_back_when_llm_output_is_invalid():
-    llm = FakeLLM(
-        output={"goal": "Broken result", "assumptions": [], "constraints": [], "next_actions": [], "confidence": 0.9},
-        intent_output={"intent": "SYSTEM_BUILDING", "confidence": 0.9},
-    )
+    llm = FakeLLM(output={"goal": "Broken result", "assumptions": [], "constraints": [], "next_actions": [], "confidence": 0.9}, intent_output={"intent": "SYSTEM_BUILDING", "confidence": 0.9})
     pipeline = BrainPipeline(llm=llm)
     result = pipeline.process("Build my system")
     assert llm.calls == 1
@@ -70,10 +58,7 @@ def test_pipeline_falls_back_when_llm_output_is_invalid():
 
 
 def test_pipeline_falls_back_when_llm_returns_bad_confidence():
-    llm = FakeLLM(
-        output={"goal": "Build the system", "assumptions": [], "constraints": [], "next_actions": ["Start with the smallest testable step"], "confidence": 4.0},
-        intent_output={"intent": "SYSTEM_BUILDING", "confidence": 0.9},
-    )
+    llm = FakeLLM(output={"goal": "Build the system", "assumptions": [], "constraints": [], "next_actions": ["Start with the smallest testable step"], "confidence": 4.0}, intent_output={"intent": "SYSTEM_BUILDING", "confidence": 0.9})
     pipeline = BrainPipeline(llm=llm)
     result = pipeline.process("Build my system")
     assert "Goal: Build my system" in result
@@ -120,3 +105,13 @@ def test_repository_status_executes_through_brain_to_orchestrator():
     assert "VERIFIED" in result
     assert pipeline.orchestrator.audit.records[0].status == "completed"
     assert pipeline.orchestrator.audit.records[0].verified is True
+
+
+def test_project_search_routes_and_executes_through_brain(tmp_path):
+    (tmp_path / "app.py").write_text("TARGET_VALUE = 42\n", encoding="utf-8")
+    llm = FakeLLM(intent_output={"intent": "UNKNOWN", "confidence": 0.99})
+    pipeline = BrainPipeline(llm=llm, orchestrator=__import__("src.agent.orchestrator", fromlist=["EmpireOrchestrator"]).EmpireOrchestrator(__import__("src.agent.capabilities", fromlist=["EmpireCapabilityExecutor"]).EmpireCapabilityExecutor(project_root=tmp_path)))
+    result = pipeline.process("Search project for TARGET_VALUE", execute=True)
+    assert "Execution Status: COMPLETED" in result
+    assert "PROJECT_SEARCH → PASS" in result
+    assert "TARGET_VALUE" in result
