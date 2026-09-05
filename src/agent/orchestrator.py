@@ -1,9 +1,9 @@
 """
 Empire OS
-Task Orchestrator — v0.6
+Task Orchestrator — v0.7
 
 Flow:
-Plan → Route → Permission → Execute → Verify → Evidence → Next Task
+Plan → Route → Permission → Execute → Verify → Evidence → Audit → Next Task
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
 
+from .audit import AuditRecord, ExecutionAudit
 from .capabilities import CapabilityResult, EmpireCapabilityExecutor
 from .tasks import Task
 
@@ -39,12 +40,13 @@ class RouteDecision:
 class EmpireOrchestrator:
     """Deterministic coordinator backed by an allow-listed capability layer."""
 
-    def __init__(self, capability_executor=None) -> None:
+    def __init__(self, capability_executor=None, audit=None) -> None:
         self.routes: dict[str, str] = {
             "inspect_project": "project_inspection",
             "run_tests": "test_runner",
         }
         self.capability_executor = capability_executor or EmpireCapabilityExecutor()
+        self.audit = audit or ExecutionAudit()
 
     def classify(self, task: Task) -> str:
         return task.command
@@ -74,47 +76,50 @@ class EmpireOrchestrator:
             return output.to_dict()
         return None
 
-    def _verify_output(
-        self,
-        capability: str,
-        output: Any,
-        verifier: Callable[[Task, Any], bool] | None,
-        task: Task,
-        *,
-        injected_executor: bool,
-    ) -> bool:
+    def _verify_output(self, capability: str, output: Any, verifier, task: Task, *, injected_executor: bool) -> bool:
         if verifier is not None:
             return bool(verifier(task, output))
         if isinstance(output, CapabilityResult):
             return bool(self.capability_executor.verify(capability, output))
         if injected_executor and isinstance(output, dict):
-            # Preserve the historical callable-executor contract while keeping
-            # malformed non-contract values fail-closed.
             return True
         return False
 
-    def execute_plan(
-        self,
-        plan: dict[str, Any],
-        *,
-        executor: Callable[[Task], Any] | None = None,
-        verifier: Callable[[Task, Any], bool] | None = None,
-        approved: bool = False,
-    ) -> dict[str, Any]:
-        """Execute tasks sequentially, verify capability evidence, and retain it."""
+    def _audit(self, task: Task, capability: str, status: str, verified: bool, output: Any = None, error: str | None = None) -> None:
+        result = self._evidence(output)
+        self.audit.record(
+            AuditRecord(
+                task_id=task.id,
+                command=task.command,
+                capability=capability,
+                status=status,
+                verified=verified,
+                error=error,
+                result=result,
+            )
+        )
+
+    def execute_plan(self, plan: dict[str, Any], *, executor: Callable[[Task], Any] | None = None, verifier: Callable[[Task, Any], bool] | None = None, approved: bool = False) -> dict[str, Any]:
+        """Execute tasks sequentially and retain immutable audit evidence."""
+        self.audit.clear()
         if plan.get("status") != "READY":
-            return {"status": "failed", "plan_id": plan.get("plan_id"), "goal": plan.get("goal", ""), "completed_tasks": 0, "failed_task_id": None, "error": "Plan is not READY.", "capability_results": []}
+            return {"status": "failed", "plan_id": plan.get("plan_id"), "goal": plan.get("goal", ""), "completed_tasks": 0, "failed_task_id": None, "error": "Plan is not READY.", "capability_results": [], "audit": []}
 
         tasks = [self._task_from_plan(raw) for raw in plan.get("tasks", [])]
-        result = {"status": "running", "plan_id": plan.get("plan_id"), "goal": plan.get("goal", ""), "completed_tasks": 0, "failed_task_id": None, "error": None, "capability_results": []}
+        result = {"status": "running", "plan_id": plan.get("plan_id"), "goal": plan.get("goal", ""), "completed_tasks": 0, "failed_task_id": None, "error": None, "capability_results": [], "audit": []}
 
         for task in tasks:
             route = self.route(task)
             if not route.accepted:
+                self._audit(task, route.capability, "rejected", False, error=route.reason)
                 result.update(status="rejected", failed_task_id=task.id, error=route.reason)
+                result["audit"] = self.audit.as_dicts()
                 return result
             if task.requires_permission and not approved:
-                result.update(status="rejected", failed_task_id=task.id, error="Permission not approved.")
+                error = "Permission not approved."
+                self._audit(task, route.capability, "rejected", False, error=error)
+                result.update(status="rejected", failed_task_id=task.id, error=error)
+                result["audit"] = self.audit.as_dicts()
                 return result
 
             try:
@@ -126,15 +131,22 @@ class EmpireOrchestrator:
                 result["status"] = "verifying"
                 verified = self._verify_output(route.capability, output, verifier, task, injected_executor=executor is not None)
                 if not verified:
-                    task.fail("Task verification failed.")
-                    result.update(status="failed", failed_task_id=task.id, error="Task verification failed.")
+                    error = "Task verification failed."
+                    task.fail(error)
+                    self._audit(task, route.capability, "failed", False, output, error)
+                    result.update(status="failed", failed_task_id=task.id, error=error)
+                    result["audit"] = self.audit.as_dicts()
                     return result
                 task.complete(output)
+                self._audit(task, route.capability, "completed", True, output)
                 result["completed_tasks"] += 1
             except Exception as exc:
                 task.fail(str(exc))
+                self._audit(task, route.capability, "failed", False, error=str(exc))
                 result.update(status="failed", failed_task_id=task.id, error=str(exc))
+                result["audit"] = self.audit.as_dicts()
                 return result
 
         result["status"] = "completed"
+        result["audit"] = self.audit.as_dicts()
         return result
