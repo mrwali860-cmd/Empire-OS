@@ -3,42 +3,74 @@
 from .context import ContextAnalyzer
 from .decisions import DecisionEngine
 from .intent import IntentDetector
+from .llm import LLMClient, LLMConfigError
 from .planner import ExecutionPlanner
 from .response import ResponseBuilder
 from .thinking import BusinessThinking
-from .reasoning import ReasoningEngine, ReasoningVerifier
+from .reasoning import ReasoningEngine, ReasoningVerifier, ReasoningResult
 
 
 class BrainPipeline:
-    """Process a request through analysis, reasoning, decision and planning."""
+    """Process requests through LLM reasoning with a deterministic fallback."""
 
-    def __init__(self):
+    def __init__(self, llm=None):
         self.intent = IntentDetector()
         self.context = ContextAnalyzer()
         self.thinking = BusinessThinking()
         self.reasoning = ReasoningEngine()
         self.verifier = ReasoningVerifier()
+        self.llm = llm or LLMClient()
         self.decision = DecisionEngine()
         self.planner = ExecutionPlanner()
         self.response = ResponseBuilder()
 
+    def _reason(self, user_input, intent, context, thinking_result):
+        payload = {
+            "user_input": user_input,
+            "intent": intent,
+            "context": context,
+            "current_strategy": thinking_result,
+        }
+
+        try:
+            llm_output = self.llm.reason(payload)
+            result = ReasoningResult(
+                goal=str(llm_output.get("goal", user_input.strip())),
+                assumptions=tuple(str(x) for x in llm_output.get("assumptions", [])),
+                constraints=tuple(str(x) for x in llm_output.get("constraints", [])),
+                next_actions=tuple(str(x) for x in llm_output.get("next_actions", [])),
+                confidence=float(llm_output.get("confidence", 0.0)),
+            )
+            check = self.verifier.verify(result.as_dict())
+            if check["verified"]:
+                print("Reasoning Source: LLM")
+                return result
+            print(f"LLM reasoning rejected: {check['reason']}")
+        except (LLMConfigError, ValueError, TypeError, KeyError) as exc:
+            print(f"LLM unavailable: {exc}")
+
+        fallback = self.reasoning.reason(
+            user_input=user_input,
+            intent=intent,
+            context=context,
+            thinking_result=thinking_result,
+        )
+        print("Reasoning Source: DETERMINISTIC_FALLBACK")
+        return fallback
+
     def process(self, user_input):
         print("Pipeline Started")
 
-        # 1. Understand the request.
         intent = self.intent.detect(user_input)
         print(f"Intent: {intent}")
 
-        # 2. Build request context.
         context = self.context.analyze(user_input)
         print(f"Context: {context}")
 
-        # 3. Produce the current business strategy.
         thinking_result = self.thinking.think(intent, context)
         print(f"Thinking: {thinking_result}")
 
-        # 4. Convert strategy into explicit, testable reasoning.
-        reasoning_result = self.reasoning.reason(
+        reasoning_result = self._reason(
             user_input=user_input,
             intent=intent,
             context=context,
@@ -52,15 +84,12 @@ class BrainPipeline:
         if not reasoning_check["verified"]:
             return "Reasoning verification failed: " + reasoning_check["reason"]
 
-        # 5. Existing decision layer remains the policy gate.
         decision = self.decision.decide(reasoning_result.summary())
         print(f"Decision: {decision}")
 
-        # 6. Convert the approved reasoning into an execution plan.
         plan = self.planner.plan(decision)
         print(f"Plan: {plan}")
 
-        # 7. Return a verified reasoning-backed response.
         response = self.response.build(plan, context)
         print(f"Response: {response}")
 
