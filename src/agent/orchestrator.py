@@ -1,6 +1,6 @@
 """
 Empire OS
-Task Orchestrator — v0.8
+Task Orchestrator — v0.9
 
 Flow:
 Plan → Route → Permission → Execute → Verify → Evidence → Audit → Next Task
@@ -28,8 +28,6 @@ class OrchestrationStatus(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class RouteDecision:
-    """Routing decision made for a task."""
-
     task_id: str
     command: str
     capability: str
@@ -43,6 +41,7 @@ class EmpireOrchestrator:
     def __init__(self, capability_executor=None, audit=None) -> None:
         self.routes: dict[str, str] = {
             "inspect_project": "project_inspection",
+            "project_search": "project_search",
             "run_tests": "test_runner",
             "git_status": "git_status",
         }
@@ -87,21 +86,9 @@ class EmpireOrchestrator:
         return False
 
     def _audit(self, task: Task, capability: str, status: str, verified: bool, output: Any = None, error: str | None = None) -> None:
-        result = self._evidence(output)
-        self.audit.record(
-            AuditRecord(
-                task_id=task.id,
-                command=task.command,
-                capability=capability,
-                status=status,
-                verified=verified,
-                error=error,
-                result=result,
-            )
-        )
+        self.audit.record(AuditRecord(task.id, task.command, capability, status, verified, error, self._evidence(output)))
 
     def execute_plan(self, plan: dict[str, Any], *, executor: Callable[[Task], Any] | None = None, verifier: Callable[[Task, Any], bool] | None = None, approved: bool = False) -> dict[str, Any]:
-        """Execute tasks sequentially and retain immutable audit evidence."""
         self.audit.clear()
         if plan.get("status") != "READY":
             return {"status": "failed", "plan_id": plan.get("plan_id"), "goal": plan.get("goal", ""), "completed_tasks": 0, "failed_task_id": None, "error": "Plan is not READY.", "capability_results": [], "audit": []}
