@@ -40,10 +40,15 @@ class IntentDetector:
         return "UNKNOWN"
 
     def detect(self, user_input: str) -> str:
-        """Return a normalized intent; fall back safely if the LLM is unavailable."""
+        """Return a normalized intent; deterministic capability signals take precedence."""
         text = (user_input or "").strip()
         if not text:
             return "UNKNOWN"
+
+        deterministic_intent = self._fallback(text)
+        if deterministic_intent == "GIT_STATUS":
+            print("Intent Source: DETERMINISTIC_FALLBACK (GIT_STATUS)")
+            return deterministic_intent
 
         try:
             result: dict[str, Any] = self.llm.classify_intent(text)
@@ -55,6 +60,5 @@ class IntentDetector:
         except (LLMConfigError, LLMProviderError, ValueError, TypeError, KeyError) as exc:
             print(f"LLM intent unavailable: {exc}")
 
-        intent = self._fallback(text)
-        print(f"Intent Source: DETERMINISTIC_FALLBACK ({intent})")
-        return intent
+        print(f"Intent Source: DETERMINISTIC_FALLBACK ({deterministic_intent})")
+        return deterministic_intent
