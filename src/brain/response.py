@@ -9,14 +9,10 @@ class ResponseBuilder:
             return "Unable to generate a response."
 
         tasks = plan.get("tasks", [])
-        lines = [
-            "",
-            "========== EMPIRE AI ==========",
-        ]
+        lines = ["", "========== EMPIRE AI =========="]
 
         if plan.get("plan_id"):
             lines.append(f"Plan ID: {plan['plan_id']}")
-
         if plan.get("goal"):
             lines.append(f"Goal: {plan['goal']}")
 
@@ -48,10 +44,17 @@ class ResponseBuilder:
             if capability_results:
                 lines.append(f"Capability Results: {len(capability_results)}")
                 for index, capability_result in enumerate(capability_results, start=1):
-                    lines.append(
-                        f"   Result {index}: {str(capability_result.get('capability', 'unknown')).upper()} → "
-                        f"{'PASS' if capability_result.get('ok') else 'FAIL'}"
-                    )
+                    capability = str(capability_result.get("capability", "unknown"))
+                    passed = bool(capability_result.get("ok"))
+                    lines.append(f"   Result {index}: {capability.upper()} → {'PASS' if passed else 'FAIL'}")
+                    data = capability_result.get("data") or {}
+                    if capability == "project_inspection":
+                        lines.append(f"      Files: {data.get('files', 'unknown')}")
+                        lines.append(f"      Directories: {data.get('directories', 'unknown')}")
+                    elif capability == "test_runner":
+                        lines.append(f"      Return Code: {data.get('return_code', 'unknown')}")
+                    if capability_result.get("error"):
+                        lines.append(f"      Error: {capability_result['error']}")
             if orchestration_result.get("failed_task_id"):
                 lines.append(f"Failed Task: {orchestration_result['failed_task_id']}")
             if orchestration_result.get("error"):
