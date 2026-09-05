@@ -44,6 +44,14 @@ class ResponseBuilder:
                     f"Completed Tasks: {orchestration_result.get('completed_tasks', 0)}",
                 ]
             )
+            capability_results = orchestration_result.get("capability_results", [])
+            if capability_results:
+                lines.append(f"Capability Results: {len(capability_results)}")
+                for index, capability_result in enumerate(capability_results, start=1):
+                    lines.append(
+                        f"   Result {index}: {str(capability_result.get('capability', 'unknown')).upper()} → "
+                        f"{'PASS' if capability_result.get('ok') else 'FAIL'}"
+                    )
             if orchestration_result.get("failed_task_id"):
                 lines.append(f"Failed Task: {orchestration_result['failed_task_id']}")
             if orchestration_result.get("error"):
