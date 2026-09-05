@@ -1,6 +1,6 @@
 """
 Empire OS
-Task Orchestrator — v0.3
+Task Orchestrator — v0.4
 
 Flow:
 Plan → Route → Permission → Execute → Verify → Next Task
@@ -53,28 +53,10 @@ class EmpireOrchestrator:
         command = self.classify(task)
         capability = self.routes.get(command)
         if capability is None:
-            return RouteDecision(
-                task_id=task.id,
-                command=command,
-                capability="",
-                accepted=False,
-                reason=f"No capability registered for command: {command}",
-            )
+            return RouteDecision(task.id, command, "", False, f"No capability registered for command: {command}")
         if not self.capability_executor.registry.has(capability):
-            return RouteDecision(
-                task_id=task.id,
-                command=command,
-                capability=capability,
-                accepted=False,
-                reason=f"Capability is not registered: {capability}",
-            )
-        return RouteDecision(
-            task_id=task.id,
-            command=command,
-            capability=capability,
-            accepted=True,
-            reason="Route accepted.",
-        )
+            return RouteDecision(task.id, command, capability, False, f"Capability is not registered: {capability}")
+        return RouteDecision(task.id, command, capability, True, "Route accepted.")
 
     @staticmethod
     def _task_from_plan(raw: dict[str, Any]) -> Task:
@@ -94,56 +76,42 @@ class EmpireOrchestrator:
         verifier: Callable[[Task, Any], bool] | None = None,
         approved: bool = False,
     ) -> dict[str, Any]:
-        """Execute tasks sequentially through controlled capabilities."""
+        """Execute tasks sequentially and verify capability evidence."""
         if plan.get("status") != "READY":
-            return {
-                "status": OrchestrationStatus.FAILED.value,
-                "plan_id": plan.get("plan_id"),
-                "goal": plan.get("goal", ""),
-                "completed_tasks": 0,
-                "failed_task_id": None,
-                "error": "Plan is not READY.",
-            }
+            return {"status": "failed", "plan_id": plan.get("plan_id"), "goal": plan.get("goal", ""), "completed_tasks": 0, "failed_task_id": None, "error": "Plan is not READY."}
 
         tasks = [self._task_from_plan(raw) for raw in plan.get("tasks", [])]
-        result = {
-            "status": OrchestrationStatus.RUNNING.value,
-            "plan_id": plan.get("plan_id"),
-            "goal": plan.get("goal", ""),
-            "completed_tasks": 0,
-            "failed_task_id": None,
-            "error": None,
-        }
+        result = {"status": "running", "plan_id": plan.get("plan_id"), "goal": plan.get("goal", ""), "completed_tasks": 0, "failed_task_id": None, "error": None}
 
         for task in tasks:
             route = self.route(task)
             if not route.accepted:
-                result.update(status=OrchestrationStatus.FAILED.value, failed_task_id=task.id, error=route.reason)
+                result.update(status="rejected", failed_task_id=task.id, error=route.reason)
                 return result
             if task.requires_permission and not approved:
-                result.update(status=OrchestrationStatus.REJECTED.value, failed_task_id=task.id, error="Permission not approved.")
+                result.update(status="rejected", failed_task_id=task.id, error="Permission not approved.")
                 return result
 
             try:
                 task.start()
-                result["status"] = OrchestrationStatus.RUNNING.value
-                output = (
-                    executor(task)
-                    if executor is not None
-                    else self.capability_executor.execute(route.capability, task)
-                )
-                result["status"] = OrchestrationStatus.VERIFYING.value
-                verified = verifier(task, output) if verifier is not None else output is not None
+                output = executor(task) if executor is not None else self.capability_executor.execute(route.capability, task)
+                result["status"] = "verifying"
+                if verifier is not None:
+                    verified = verifier(task, output)
+                elif hasattr(self.capability_executor, "verify"):
+                    verified = self.capability_executor.verify(route.capability, output)
+                else:
+                    verified = output is not None
                 if not verified:
                     task.fail("Task verification failed.")
-                    result.update(status=OrchestrationStatus.FAILED.value, failed_task_id=task.id, error="Task verification failed.")
+                    result.update(status="failed", failed_task_id=task.id, error="Task verification failed.")
                     return result
                 task.complete(output)
                 result["completed_tasks"] += 1
             except Exception as exc:
                 task.fail(str(exc))
-                result.update(status=OrchestrationStatus.FAILED.value, failed_task_id=task.id, error=str(exc))
+                result.update(status="failed", failed_task_id=task.id, error=str(exc))
                 return result
 
-        result["status"] = OrchestrationStatus.COMPLETED.value
+        result["status"] = "completed"
         return result
