@@ -94,10 +94,15 @@ class EmpireCapabilityExecutor:
             return (
                 isinstance(data.get("query"), str)
                 and bool(data["query"].strip())
-                and isinstance(matches, list)
+                and isinstance(data.get("match_count"), int)
+                and data["match_count"] == len(matches) if isinstance(matches, list) else False
+            ) and (
+                isinstance(matches, list)
+                and len(matches) <= ProjectSearchCapability.MAX_MATCHES
                 and all(
                     isinstance(match, dict)
                     and isinstance(match.get("file"), str)
+                    and bool(match["file"])
                     and isinstance(match.get("line"), int)
                     and match["line"] >= 1
                     and isinstance(match.get("text"), str)
