@@ -32,6 +32,8 @@ class ExecutionPlanner:
     """
 
     ACTION_RULES = (
+        ("git status", "git_status", False),
+        ("repository status", "git_status", False),
         ("inspect", "inspect_project", False),
         ("run tests", "run_tests", False),
         ("test", "run_tests", False),
