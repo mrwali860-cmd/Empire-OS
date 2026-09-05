@@ -1,8 +1,4 @@
-"""Deterministic reasoning layer for Empire Brain.
-
-This is intentionally provider-agnostic. A future LLM adapter can replace or
-augment the heuristic hypothesis generation without changing the pipeline API.
-"""
+"""Deterministic reasoning layer for Empire Brain."""
 
 from __future__ import annotations
 
@@ -73,17 +69,10 @@ class ReasoningEngine:
                 return normalized[len(prefix):].strip()
         return normalized
 
-    def reason(
-        self,
-        user_input: str,
-        intent: str,
-        context: dict[str, Any],
-        thinking_result: str,
-    ) -> ReasoningResult:
+    def reason(self, user_input: str, intent: str, context: dict[str, Any], thinking_result: str) -> ReasoningResult:
         text = user_input.strip()
         assumptions: list[str] = []
         constraints: list[str] = []
-
         if context.get("experience") != "UNKNOWN":
             assumptions.append(f"Experience level is {context['experience']}")
         if context.get("business") != "UNKNOWN":
@@ -92,15 +81,12 @@ class ReasoningEngine:
             constraints.append("High urgency")
         if context.get("budget") != "UNKNOWN":
             constraints.append(f"Budget: {context['budget']}")
-
         goal = text or "Clarify the user's objective"
-
         actions = tuple(
             line.strip()[3:]
             for line in thinking_result.splitlines()
             if line.strip()[:2].isdigit() and line.strip()[2:3] == "."
         )
-
         if intent == "GIT_STATUS":
             actions = ("Check Git status",)
         elif intent == "PROJECT_SEARCH":
@@ -115,15 +101,7 @@ class ReasoningEngine:
                 "Choose the smallest executable next step",
                 "Verify the outcome before declaring success",
             )
-
         confidence = 0.85 if intent != "UNKNOWN" else 0.55
         if not text:
             confidence = 0.20
-
-        return ReasoningResult(
-            goal=goal,
-            assumptions=tuple(assumptions),
-            constraints=tuple(constraints),
-            next_actions=actions,
-            confidence=confidence,
-        )
+        return ReasoningResult(goal=goal, assumptions=tuple(assumptions), constraints=tuple(constraints), next_actions=actions, confidence=confidence)
