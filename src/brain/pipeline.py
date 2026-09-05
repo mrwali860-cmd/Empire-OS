@@ -3,7 +3,7 @@
 from .context import ContextAnalyzer
 from .decisions import DecisionEngine
 from .intent import IntentDetector
-from .llm import LLMClient, LLMConfigError
+from .llm import LLMClient, LLMConfigError, LLMProviderError
 from .planner import ExecutionPlanner
 from .response import ResponseBuilder
 from .thinking import BusinessThinking
@@ -46,7 +46,7 @@ class BrainPipeline:
                 print("Reasoning Source: LLM")
                 return result
             print(f"LLM reasoning rejected: {check['reason']}")
-        except (LLMConfigError, ValueError, TypeError, KeyError) as exc:
+        except (LLMConfigError, LLMProviderError, ValueError, TypeError, KeyError) as exc:
             print(f"LLM unavailable: {exc}")
 
         fallback = self.reasoning.reason(
