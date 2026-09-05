@@ -6,8 +6,6 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from .capabilities import CapabilityResult
-
 
 class GitStatusCapability:
     """Inspect repository state without mutating the working tree."""
@@ -17,8 +15,10 @@ class GitStatusCapability:
     def __init__(self, project_root: str | Path) -> None:
         self.project_root = Path(project_root).resolve()
 
-    def execute(self, task: Any = None) -> CapabilityResult:
+    def execute(self, task: Any = None):
         """Return branch, cleanliness, changed files, and current commit SHA."""
+        from .capabilities import CapabilityResult
+
         try:
             branch = self._git(["rev-parse", "--abbrev-ref", "HEAD"])
             commit_sha = self._git(["rev-parse", "HEAD"])
