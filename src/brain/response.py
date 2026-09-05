@@ -31,7 +31,15 @@ class ResponseBuilder:
                     passed = bool(capability_result.get("ok"))
                     lines.append(f"   Result {index}: {capability.upper()} → {'PASS' if passed else 'FAIL'}")
                     data = capability_result.get("data") or {}
-                    if capability == "project_inspection":
+                    if capability == "file_read":
+                        lines.append(f"      Path: {data.get('path', 'unknown')}")
+                        lines.append(f"      Characters: {data.get('char_count', 'unknown')}")
+                        lines.append(f"      Truncated: {data.get('truncated', 'unknown')}")
+                        content = data.get("content", "")
+                        if content:
+                            lines.append("      Content:")
+                            lines.extend(f"      {line}" for line in str(content).splitlines()[:20])
+                    elif capability == "project_inspection":
                         lines.append(f"      Files: {data.get('files', 'unknown')}")
                         lines.append(f"      Directories: {data.get('directories', 'unknown')}")
                     elif capability == "project_search":
