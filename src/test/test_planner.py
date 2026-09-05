@@ -35,6 +35,12 @@ def test_project_search_action_maps_to_capability():
     assert plan["tasks"][0]["requires_permission"] is False
 
 
+def test_file_write_requires_permission():
+    plan = ExecutionPlanner().plan({"status": "APPROVED", "decision": "Goal: Update project file\n1. Write file: app.py content: VALUE = 42"})
+    assert plan["tasks"][0]["action"] == "file_write"
+    assert plan["tasks"][0]["requires_permission"] is True
+
+
 def test_rejected_decision_has_no_tasks():
     plan = ExecutionPlanner().plan({"status": "FAILED", "decision": "Do not execute"})
     assert plan["status"] == "FAILED"
