@@ -39,7 +39,7 @@ def test_registry_rejects_unknown_capability():
 
 def test_default_executor_registers_real_routes(tmp_path: Path):
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
-    assert executor.registry.names == ("project_inspection", "test_runner")
+    assert executor.registry.names == ("git_status", "project_inspection", "test_runner")
     result = executor.execute("project_inspection", make_task())
     assert isinstance(result, CapabilityResult)
     assert result.ok is True
@@ -114,3 +114,38 @@ def test_capability_verifier_rejects_wrong_capability(tmp_path: Path):
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
     result = CapabilityResult(ok=True, capability="test_runner", data={"return_code": 0})
     assert executor.verify("project_inspection", result) is False
+
+
+def test_git_status_returns_read_only_evidence():
+    executor = EmpireCapabilityExecutor()
+    result = executor.execute("git_status", make_task("git_status"))
+    assert result.ok is True
+    assert result.capability == "git_status"
+    assert isinstance(result.data["branch"], str)
+    assert isinstance(result.data["clean"], bool)
+    assert isinstance(result.data["changed_files"], list)
+    assert len(result.data["commit_sha"]) == 40
+
+
+def test_git_status_completed_and_audited():
+    result = EmpireOrchestrator(EmpireCapabilityExecutor()).execute_plan(make_plan("git_status"))
+    assert result["status"] == OrchestrationStatus.COMPLETED.value
+    assert result["completed_tasks"] == 1
+    audit = result["audit"][0]
+    assert audit["capability"] == "git_status"
+    assert audit["status"] == "completed"
+    assert audit["verified"] is True
+    assert audit["result"]["data"]["commit_sha"]
+
+
+def test_git_status_malformed_result_failed():
+    class MalformedExecutor(EmpireCapabilityExecutor):
+        def execute(self, capability, task):
+            if capability == "git_status":
+                return CapabilityResult(ok=True, capability="git_status", data={"branch": "main"})
+            return super().execute(capability, task)
+
+    result = EmpireOrchestrator(MalformedExecutor()).execute_plan(make_plan("git_status"))
+    assert result["status"] == OrchestrationStatus.FAILED.value
+    assert result["failed_task_id"] == "TASK-001"
+    assert result["audit"][0]["verified"] is False
