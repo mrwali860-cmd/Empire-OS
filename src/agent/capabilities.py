@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from .file_read import FileReadCapability
 from .git_status import GitStatusCapability
 from .project_search import ProjectSearchCapability
 from .tasks import Task
@@ -73,6 +74,7 @@ class EmpireCapabilityExecutor:
     def __init__(self, project_root: str | Path | None = None) -> None:
         self.project_root = Path(project_root or Path(__file__).resolve().parents[2])
         self.registry = CapabilityRegistry()
+        self.registry.register("file_read", FileReadCapability(self.project_root).execute)
         self.registry.register("project_inspection", self.inspect_project)
         self.registry.register("project_search", ProjectSearchCapability(self.project_root).execute)
         self.registry.register("test_runner", self.run_tests)
@@ -87,6 +89,15 @@ class EmpireCapabilityExecutor:
         if result.capability != capability or not result.ok or result.error is not None:
             return False
         data = result.data or {}
+        if capability == "file_read":
+            return (
+                isinstance(data.get("path"), str)
+                and bool(data["path"])
+                and isinstance(data.get("content"), str)
+                and isinstance(data.get("char_count"), int)
+                and data["char_count"] >= len(data["content"])
+                and isinstance(data.get("truncated"), bool)
+            )
         if capability == "project_inspection":
             return isinstance(data.get("files"), int) and data["files"] >= 0 and isinstance(data.get("directories"), int) and data["directories"] >= 0
         if capability == "project_search":
