@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
@@ -14,6 +15,24 @@ CapabilityHandler = Callable[[Task], Any]
 
 class CapabilityError(RuntimeError):
     """Raised when a capability cannot be executed safely."""
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilityResult:
+    """Standard result contract returned by every capability."""
+
+    ok: bool
+    capability: str
+    data: dict[str, Any] | None = None
+    error: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "capability": self.capability,
+            "data": self.data or {},
+            "error": self.error,
+        }
 
 
 class CapabilityRegistry:
@@ -30,11 +49,21 @@ class CapabilityRegistry:
     def has(self, name: str) -> bool:
         return name in self._handlers
 
-    def execute(self, name: str, task: Task) -> Any:
+    def execute(self, name: str, task: Task) -> CapabilityResult:
         handler = self._handlers.get(name)
         if handler is None:
             raise CapabilityError(f"Capability is not registered: {name}")
-        return handler(task)
+        raw = handler(task)
+        if isinstance(raw, CapabilityResult):
+            return raw
+        if isinstance(raw, dict):
+            return CapabilityResult(
+                ok=bool(raw.get("ok", False)),
+                capability=str(raw.get("capability", name)),
+                data={k: v for k, v in raw.items() if k not in {"ok", "capability", "error"}},
+                error=raw.get("error"),
+            )
+        raise CapabilityError(f"Malformed capability result for: {name}")
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -50,10 +79,28 @@ class EmpireCapabilityExecutor:
         self.registry.register("project_inspection", self.inspect_project)
         self.registry.register("test_runner", self.run_tests)
 
-    def execute(self, capability: str, task: Task) -> Any:
+    def execute(self, capability: str, task: Task) -> CapabilityResult:
         return self.registry.execute(capability, task)
 
-    def inspect_project(self, task: Task) -> dict[str, Any]:
+    def verify(self, capability: str, result: Any) -> bool:
+        """Verify the standard result and capability-specific evidence."""
+        if not isinstance(result, CapabilityResult):
+            return False
+        if result.capability != capability or not result.ok or result.error is not None:
+            return False
+        data = result.data or {}
+        if capability == "project_inspection":
+            return (
+                isinstance(data.get("files"), int)
+                and data["files"] >= 0
+                and isinstance(data.get("directories"), int)
+                and data["directories"] >= 0
+            )
+        if capability == "test_runner":
+            return data.get("return_code") == 0
+        return False
+
+    def inspect_project(self, task: Task) -> CapabilityResult:
         """Return bounded project metadata without modifying the filesystem."""
         if not self.project_root.is_dir():
             raise CapabilityError(f"Project root does not exist: {self.project_root}")
@@ -68,15 +115,17 @@ class EmpireCapabilityExecutor:
             elif path.is_dir():
                 directories += 1
 
-        return {
-            "ok": True,
-            "capability": "project_inspection",
-            "project_root": str(self.project_root),
-            "files": files,
-            "directories": directories,
-        }
+        return CapabilityResult(
+            ok=True,
+            capability="project_inspection",
+            data={
+                "project_root": str(self.project_root),
+                "files": files,
+                "directories": directories,
+            },
+        )
 
-    def run_tests(self, task: Task) -> dict[str, Any]:
+    def run_tests(self, task: Task) -> CapabilityResult:
         """Run pytest with a fixed command; task text cannot alter execution."""
         command = [sys.executable, "-m", "pytest", "-q"]
         completed = subprocess.run(
@@ -87,15 +136,17 @@ class EmpireCapabilityExecutor:
             check=False,
             timeout=300,
         )
-        result = {
-            "ok": completed.returncode == 0,
-            "capability": "test_runner",
-            "return_code": completed.returncode,
-            "stdout": completed.stdout[-4000:],
-            "stderr": completed.stderr[-4000:],
-        }
-        if completed.returncode != 0:
-            raise CapabilityError(
+        return CapabilityResult(
+            ok=completed.returncode == 0,
+            capability="test_runner",
+            data={
+                "return_code": completed.returncode,
+                "stdout": completed.stdout[-4000:],
+                "stderr": completed.stderr[-4000:],
+            },
+            error=(
                 f"Test suite failed with exit code {completed.returncode}."
-            )
-        return result
+                if completed.returncode != 0
+                else None
+            ),
+        )
