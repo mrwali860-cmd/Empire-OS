@@ -1,3 +1,4 @@
+from src.agent.capabilities import EmpireCapabilityExecutor
 from src.agent.orchestrator import EmpireOrchestrator, OrchestrationStatus
 from src.agent.tasks import Task
 
@@ -28,6 +29,17 @@ def test_orchestrator_rejects_unknown_task():
 
     assert decision.accepted is False
     assert "No capability" in decision.reason
+
+
+def test_orchestrator_rejects_unregistered_capability():
+    orchestrator = EmpireOrchestrator(EmpireCapabilityExecutor())
+    orchestrator.routes["run_tests"] = "missing_capability"
+
+    decision = orchestrator.route(make_task())
+
+    assert decision.accepted is False
+    assert decision.capability == "missing_capability"
+    assert "not registered" in decision.reason
 
 
 def test_orchestrator_executes_plan_in_order():
