@@ -9,8 +9,6 @@ from dataclasses import asdict, dataclass
 
 @dataclass(frozen=True)
 class PlanTask:
-    """A safe, machine-readable unit of planned work."""
-
     id: str
     title: str
     description: str
@@ -24,16 +22,17 @@ class PlanTask:
 
 
 class ExecutionPlanner:
-    """Convert an approved decision into a safe execution contract.
-
-    The planner never turns arbitrary model text into shell commands. Known
-    capabilities receive explicit action names; everything else is routed to
-    manual review until an executor explicitly supports that capability.
-    """
+    """Convert an approved decision into a safe execution contract."""
 
     ACTION_RULES = (
         ("git status", "git_status", False),
         ("repository status", "git_status", False),
+        ("search project", "project_search", False),
+        ("search code", "project_search", False),
+        ("find in project", "project_search", False),
+        ("find in code", "project_search", False),
+        ("search repository", "project_search", False),
+        ("find code", "project_search", False),
         ("inspect", "inspect_project", False),
         ("run tests", "run_tests", False),
         ("test", "run_tests", False),
@@ -73,37 +72,13 @@ class ExecutionPlanner:
 
     def plan(self, decision):
         if not decision or decision.get("status") != "APPROVED":
-            return {
-                "status": "FAILED",
-                "plan_id": None,
-                "goal": "",
-                "tasks": [],
-                "verification_required": True,
-            }
-
+            return {"status": "FAILED", "plan_id": None, "goal": "", "tasks": [], "verification_required": True}
         decision_text = str(decision.get("decision", "")).strip()
         actions = self._extract_actions(decision_text)
         plan_id = self._plan_id(decision_text)
         goal = self._extract_goal(decision_text)
         tasks = []
-
         for index, title in enumerate(actions, start=1):
             action, permission = self._map_action(title)
-            tasks.append(
-                PlanTask(
-                    id=f"{plan_id}-T{index:02d}",
-                    title=title,
-                    description=f"Execute planned step: {title}",
-                    action=action,
-                    requires_permission=permission,
-                    verification="Verify the outcome before marking the task complete.",
-                ).as_dict()
-            )
-
-        return {
-            "status": "READY",
-            "plan_id": plan_id,
-            "goal": goal,
-            "tasks": tasks,
-            "verification_required": True,
-        }
+            tasks.append(PlanTask(id=f"{plan_id}-T{index:02d}", title=title, description=f"Execute planned step: {title}", action=action, requires_permission=permission, verification="Verify the outcome before marking the task complete.").as_dict())
+        return {"status": "READY", "plan_id": plan_id, "goal": goal, "tasks": tasks, "verification_required": True}
