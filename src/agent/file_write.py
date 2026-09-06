@@ -36,15 +36,24 @@ class FileWriteCapability:
             content = content[1:]
         return path_text, content
 
+    @classmethod
+    def validate_task(cls, task: Any) -> bool:
+        """Validate the minimum file-write input contract before execution."""
+        description = str(getattr(task, "description", ""))
+        path_text, _ = cls._extract_request(description)
+        return bool(path_text)
+
     def execute(self, task: Any = None):
         from .capabilities import CapabilityResult
 
         path_text, content = self._extract_request(str(getattr(task, "description", "")))
         if not path_text:
             return CapabilityResult(False, self.name, {}, "File path is required.")
+
         lexical_candidate = self.project_root / path_text
         if lexical_candidate.is_symlink():
             return CapabilityResult(False, self.name, {}, "Symlink targets are not allowed.")
+
         candidate = lexical_candidate.resolve()
         try:
             candidate.relative_to(self.project_root)
@@ -52,17 +61,20 @@ class FileWriteCapability:
             return CapabilityResult(False, self.name, {}, "File path is outside the project root.")
         if candidate == self.project_root:
             return CapabilityResult(False, self.name, {}, "Target must be a regular file inside the project root.")
+
         try:
             encoded = content.encode("utf-8")
         except UnicodeEncodeError as exc:
             return CapabilityResult(False, self.name, {}, str(exc))
         if len(encoded) > self.MAX_BYTES:
             return CapabilityResult(False, self.name, {}, "File exceeds the write size limit.")
+
         try:
             candidate.parent.mkdir(parents=True, exist_ok=True)
             candidate.write_text(content, encoding="utf-8")
         except OSError as exc:
             return CapabilityResult(False, self.name, {}, str(exc))
+
         return CapabilityResult(
             True,
             self.name,
