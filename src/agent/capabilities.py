@@ -248,7 +248,17 @@ class EmpireCapabilityExecutor:
     @staticmethod
     def _verify_test_runner(result: CapabilityResult) -> bool:
         data = result.data or {}
-        return result.ok and result.error is None and data.get("return_code") == 0
+        return (
+            result.ok
+            and result.error is None
+            and isinstance(data.get("return_code"), int)
+            and not isinstance(data.get("return_code"), bool)
+            and data["return_code"] == 0
+            and isinstance(data.get("stdout"), str)
+            and len(data["stdout"]) <= 4000
+            and isinstance(data.get("stderr"), str)
+            and len(data["stderr"]) <= 4000
+        )
 
     @staticmethod
     def _verify_git_status(result: CapabilityResult) -> bool:
@@ -258,27 +268,3 @@ class EmpireCapabilityExecutor:
             and result.error is None
             and isinstance(data.get("branch"), str)
             and bool(data["branch"])
-            and isinstance(data.get("clean"), bool)
-            and isinstance(data.get("changed_files"), list)
-            and all(isinstance(path, str) for path in data["changed_files"])
-            and isinstance(data.get("commit_sha"), str)
-            and len(data["commit_sha"]) == 40
-        )
-
-    def inspect_project(self, task: Task) -> CapabilityResult:
-        if not self.project_root.is_dir():
-            raise CapabilityError(f"Project root does not exist: {self.project_root}")
-        files = 0
-        directories = 0
-        for path in self.project_root.rglob("*"):
-            if any(part in {".git", ".pytest_cache", "__pycache__"} for part in path.parts):
-                continue
-            if path.is_file():
-                files += 1
-            elif path.is_dir():
-                directories += 1
-        return CapabilityResult(True, "project_inspection", {"project_root": str(self.project_root), "files": files, "directories": directories})
-
-    def run_tests(self, task: Task) -> CapabilityResult:
-        completed = subprocess.run([sys.executable, "-m", "pytest", "-q"], cwd=self.project_root, capture_output=True, text=True, check=False, timeout=300)
-        return CapabilityResult(ok=completed.returncode == 0, capability="test_runner", data={"return_code": completed.returncode, "stdout": completed.stdout[-4000:], "stderr": completed.stderr[-4000:]}, error=f"Test suite failed with exit code {completed.returncode}." if completed.returncode != 0 else None)
