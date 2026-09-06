@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -71,7 +73,19 @@ class FileWriteCapability:
 
         try:
             candidate.parent.mkdir(parents=True, exist_ok=True)
-            candidate.write_text(content, encoding="utf-8")
+            fd, temp_name = tempfile.mkstemp(prefix=f".{candidate.name}.", dir=candidate.parent)
+            try:
+                with os.fdopen(fd, "wb") as temp_file:
+                    temp_file.write(encoded)
+                    temp_file.flush()
+                    os.fsync(temp_file.fileno())
+                os.replace(temp_name, candidate)
+            except Exception:
+                try:
+                    os.unlink(temp_name)
+                except OSError:
+                    pass
+                raise
         except OSError as exc:
             return CapabilityResult(False, self.name, {}, str(exc))
 
