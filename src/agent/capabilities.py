@@ -263,8 +263,60 @@ class EmpireCapabilityExecutor:
     @staticmethod
     def _verify_git_status(result: CapabilityResult) -> bool:
         data = result.data or {}
+        branch = data.get("branch")
+        clean = data.get("clean")
+        changed_files = data.get("changed_files")
+        commit_sha = data.get("commit_sha")
         return (
             result.ok
             and result.error is None
-            and isinstance(data.get("branch"), str)
-            and bool(data["branch"])
+            and isinstance(branch, str)
+            and bool(branch)
+            and isinstance(clean, bool)
+            and isinstance(changed_files, list)
+            and all(isinstance(path, str) for path in changed_files)
+            and isinstance(commit_sha, str)
+            and bool(commit_sha)
+            and len(commit_sha) == 40
+            and all(c in "0123456789abcdefABCDEF" for c in commit_sha)
+        )
+
+    def inspect_project(self, task: Task) -> CapabilityResult:
+        if not self.project_root.is_dir():
+            return CapabilityResult(False, "project_inspection", {}, "Project root does not exist.")
+        files = 0
+        directories = 0
+        excluded = {".git", ".pytest_cache", "__pycache__"}
+        for path in self.project_root.rglob("*"):
+            if any(part in excluded for part in path.parts):
+                continue
+            if path.is_file():
+                files += 1
+            elif path.is_dir():
+                directories += 1
+        return CapabilityResult(
+            True,
+            "project_inspection",
+            {"project_root": str(self.project_root), "files": files, "directories": directories},
+            None,
+        )
+
+    def run_tests(self, task: Task) -> CapabilityResult:
+        completed = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q"],
+            cwd=self.project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+        )
+        return CapabilityResult(
+            ok=completed.returncode == 0,
+            capability="test_runner",
+            data={
+                "return_code": completed.returncode,
+                "stdout": completed.stdout[-4000:],
+                "stderr": completed.stderr[-4000:],
+            },
+            error=f"Test suite failed with exit code {completed.returncode}." if completed.returncode != 0 else None,
+        )
