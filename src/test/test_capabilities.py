@@ -172,6 +172,75 @@ def test_project_search_malformed_result_failed(tmp_path: Path):
     assert result["status"] == OrchestrationStatus.FAILED.value
 
 
+def test_project_search_rejects_empty_query_at_input_contract(tmp_path: Path):
+    result = EmpireCapabilityExecutor(project_root=tmp_path).execute("project_search", make_task("project_search", "Execute planned step:    "))
+    assert result.ok is False
+    assert result.error == "Search query is required."
+    assert EmpireCapabilityExecutor(project_root=tmp_path).verify("project_search", result) is False
+
+
+def test_project_search_rejects_oversized_query_at_input_contract(tmp_path: Path):
+    query = "x" * (ProjectSearchCapability.MAX_QUERY_LENGTH + 1)
+    result = EmpireCapabilityExecutor(project_root=tmp_path).execute("project_search", make_task("project_search", f"Execute planned step: {query}"))
+    assert result.ok is False
+    assert "exceeds" in result.error
+
+
+def test_project_search_output_is_deterministic_and_excludes_internal_dirs(tmp_path: Path):
+    from src.agent.project_search import ProjectSearchCapability
+
+    (tmp_path / "b.py").write_text("TARGET\n", encoding="utf-8")
+    (tmp_path / "a.py").write_text("TARGET\n", encoding="utf-8")
+    internal = tmp_path / ".git" / "ignored.txt"
+    internal.parent.mkdir()
+    internal.write_text("TARGET\n", encoding="utf-8")
+    result = EmpireCapabilityExecutor(project_root=tmp_path).execute("project_search", make_task("project_search", "Execute planned step: TARGET"))
+    assert result.ok is True
+    assert [match["file"] for match in result.data["matches"]] == ["a.py", "b.py"]
+    assert all(".git" not in match["file"] for match in result.data["matches"])
+    assert result.data["scanned_files"] == 2
+    assert EmpireCapabilityExecutor(project_root=tmp_path).verify("project_search", result) is True
+    assert ProjectSearchCapability.MAX_MATCHES == 200
+
+
+def test_project_search_verifier_rejects_inconsistent_count_and_bad_match_shape(tmp_path: Path):
+    executor = EmpireCapabilityExecutor(project_root=tmp_path)
+    bad_count = CapabilityResult(True, "project_search", {"query": "x", "matches": [], "match_count": 1, "truncated": False, "scanned_files": 0})
+    bad_match = CapabilityResult(True, "project_search", {"query": "x", "matches": [{"file": "a.py", "line": 0, "text": "x"}], "match_count": 1, "truncated": False, "scanned_files": 1})
+    assert executor.verify("project_search", bad_count) is False
+    assert executor.verify("project_search", bad_match) is False
+
+
+def test_project_search_truncation_contract_is_explicit(tmp_path: Path):
+    from src.agent.project_search import ProjectSearchCapability
+
+    for index in range(ProjectSearchCapability.MAX_MATCHES + 5):
+        (tmp_path / f"file_{index:03}.txt").write_text("TARGET\n", encoding="utf-8")
+    result = EmpireCapabilityExecutor(project_root=tmp_path).execute("project_search", make_task("project_search", "Execute planned step: TARGET"))
+    assert result.ok is True
+    assert result.data["match_count"] == ProjectSearchCapability.MAX_MATCHES
+    assert len(result.data["matches"]) == ProjectSearchCapability.MAX_MATCHES
+    assert result.data["truncated"] is True
+    assert EmpireCapabilityExecutor(project_root=tmp_path).verify("project_search", result) is True
+
+
+def test_project_search_evidence_and_audit_are_contract_aligned(tmp_path: Path):
+    (tmp_path / "app.py").write_text("TARGET = 42\n", encoding="utf-8")
+    result = EmpireOrchestrator(EmpireCapabilityExecutor(project_root=tmp_path)).execute_plan(make_plan("project_search", "Execute planned step: TARGET"))
+    evidence = result["capability_results"][0]
+    audit = result["audit"][0]
+    assert evidence["ok"] is True
+    assert evidence["capability"] == "project_search"
+    assert evidence["data"]["query"] == "TARGET"
+    assert evidence["data"]["match_count"] == 1
+    assert evidence["data"]["matches"][0] == {"file": "app.py", "line": 1, "text": "TARGET = 42"}
+    assert evidence["data"]["truncated"] is False
+    assert audit["capability"] == "project_search"
+    assert audit["status"] == "completed"
+    assert audit["verified"] is True
+    assert audit["evidence"] == evidence
+
+
 def test_passing_tests_completed(monkeypatch, tmp_path: Path):
     class Completed:
         returncode = 0
