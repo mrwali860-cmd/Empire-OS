@@ -10,7 +10,6 @@ from typing import Any
 from src.business.decision.decision_engine import DecisionEngine
 from src.business.decision.models import DecisionOption
 
-from .capabilities import CapabilityResult
 from .tasks import Task
 
 
@@ -81,7 +80,9 @@ class DecisionEngineCapability:
         value["confidence"] = max(0.0, min(1.0, float(result.confidence) / 100.0))
         return value
 
-    def execute(self, task: Task) -> CapabilityResult:
+    def execute(self, task: Task):
+        from .capabilities import CapabilityResult
+
         payload = self.parse_task(task)
         if not self.validate_payload(payload):
             return CapabilityResult(False, "decision_engine", {}, "Invalid decision_engine input contract.")
