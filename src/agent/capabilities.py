@@ -205,6 +205,9 @@ class EmpireCapabilityExecutor:
             and isinstance(data.get("query"), str)
             and bool(data["query"].strip())
             and isinstance(data.get("match_count"), int)
+            and data["match_count"] >= 0
+            and isinstance(data.get("scanned_files"), int)
+            and data["scanned_files"] >= 0
             and isinstance(matches, list)
             and data["match_count"] == len(matches)
             and len(matches) <= ProjectSearchCapability.MAX_MATCHES
@@ -215,6 +218,7 @@ class EmpireCapabilityExecutor:
                 and isinstance(match.get("line"), int)
                 and match["line"] >= 1
                 and isinstance(match.get("text"), str)
+                and len(match["text"]) <= ProjectSearchCapability.MAX_LINE_LENGTH
                 for match in matches
             )
             and isinstance(data.get("truncated"), bool)
