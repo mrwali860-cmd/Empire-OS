@@ -4,6 +4,7 @@ import pytest
 
 from src.agent.capabilities import CapabilityError, CapabilityRegistry, CapabilityResult, EmpireCapabilityExecutor
 from src.agent.orchestrator import EmpireOrchestrator, OrchestrationStatus
+from src.agent.project_search import ProjectSearchCapability
 from src.agent.tasks import Task
 
 
@@ -187,8 +188,6 @@ def test_project_search_rejects_oversized_query_at_input_contract(tmp_path: Path
 
 
 def test_project_search_output_is_deterministic_and_excludes_internal_dirs(tmp_path: Path):
-    from src.agent.project_search import ProjectSearchCapability
-
     (tmp_path / "b.py").write_text("TARGET\n", encoding="utf-8")
     (tmp_path / "a.py").write_text("TARGET\n", encoding="utf-8")
     internal = tmp_path / ".git" / "ignored.txt"
@@ -212,8 +211,6 @@ def test_project_search_verifier_rejects_inconsistent_count_and_bad_match_shape(
 
 
 def test_project_search_truncation_contract_is_explicit(tmp_path: Path):
-    from src.agent.project_search import ProjectSearchCapability
-
     for index in range(ProjectSearchCapability.MAX_MATCHES + 5):
         (tmp_path / f"file_{index:03}.txt").write_text("TARGET\n", encoding="utf-8")
     result = EmpireCapabilityExecutor(project_root=tmp_path).execute("project_search", make_task("project_search", "Execute planned step: TARGET"))
@@ -238,7 +235,7 @@ def test_project_search_evidence_and_audit_are_contract_aligned(tmp_path: Path):
     assert audit["capability"] == "project_search"
     assert audit["status"] == "completed"
     assert audit["verified"] is True
-    assert audit["evidence"] == evidence
+    assert audit["result"] == evidence
 
 
 def test_passing_tests_completed(monkeypatch, tmp_path: Path):
