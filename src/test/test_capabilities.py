@@ -37,6 +37,29 @@ def test_registry_rejects_unknown_capability():
         CapabilityRegistry().execute("missing", make_task())
 
 
+def test_registry_contract_exposes_execution_verification_and_evidence():
+    registry = CapabilityRegistry()
+    registry.register("demo", lambda task: CapabilityResult(True, "demo", {"value": 42}), verifier=lambda result: result.ok and result.data == {"value": 42})
+    contract = registry.get("demo")
+    result = contract.execute(make_task())
+    assert contract.verified(result) is True
+    assert contract.evidence(result) == {"ok": True, "capability": "demo", "data": {"value": 42}, "error": None}
+
+
+def test_registry_contract_rejects_invalid_input():
+    registry = CapabilityRegistry()
+    registry.register("demo", lambda task: CapabilityResult(True, "demo"))
+    with pytest.raises(CapabilityError, match="Invalid input"):
+        registry.get("demo").execute("not-a-task")
+
+
+def test_registry_contract_rejects_result_capability_mismatch():
+    registry = CapabilityRegistry()
+    registry.register("demo", lambda task: CapabilityResult(True, "other"))
+    with pytest.raises(CapabilityError, match="result mismatch"):
+        registry.execute("demo", make_task())
+
+
 def test_default_executor_registers_real_routes(tmp_path: Path):
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
     assert executor.registry.names == ("file_read", "file_write", "git_status", "project_inspection", "project_search", "test_runner")
