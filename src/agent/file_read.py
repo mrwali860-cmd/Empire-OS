@@ -29,6 +29,12 @@ class FileReadCapability:
                 return query[len(marker):].strip()
         return query
 
+    @classmethod
+    def validate_task(cls, task: Any) -> bool:
+        """Validate the minimum input contract before execution."""
+        description = str(getattr(task, "description", ""))
+        return bool(cls._extract_path(description))
+
     def execute(self, task: Any = None):
         from .capabilities import CapabilityResult
 
