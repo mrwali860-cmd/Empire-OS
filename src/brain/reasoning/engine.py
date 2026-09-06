@@ -49,8 +49,7 @@ class ReasoningEngine:
 
     @staticmethod
     def _file_write_request(text: str) -> str:
-        """Remove a user-supplied write verb before emitting the canonical action."""
-        normalized = text.strip()
+        """Remove only the leading write verb while preserving content whitespace."""
         prefixes = (
             "write file:",
             "write file ",
@@ -61,13 +60,16 @@ class ReasoningEngine:
             "update file:",
             "update file ",
         )
-        lowered = normalized.lower()
+        leading = text.lstrip()
+        lowered = leading.lower()
         for prefix in prefixes:
             if lowered.startswith(prefix):
-                return normalized[len(prefix):].strip()
-        return normalized
+                remainder = leading[len(prefix):]
+                return remainder[1:] if remainder.startswith(" ") else remainder
+        return text
 
     def reason(self, user_input: str, intent: str, context: dict[str, Any], thinking_result: str) -> ReasoningResult:
+        raw_text = user_input
         text = user_input.strip()
         assumptions: list[str] = []
         constraints: list[str] = []
@@ -84,7 +86,7 @@ class ReasoningEngine:
         elif intent == "FILE_READ":
             actions = (f"Read file: {self._file_path(text)}",)
         elif intent == "FILE_WRITE":
-            actions = (f"Write file: {self._file_write_request(text)}",)
+            actions = (f"Write file: {self._file_write_request(raw_text)}",)
         elif not actions:
             actions = ("Clarify the objective and success criteria", "Choose the smallest executable next step", "Verify the outcome before declaring success")
         confidence = 0.85 if intent != "UNKNOWN" else 0.55
