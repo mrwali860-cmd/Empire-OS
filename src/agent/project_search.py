@@ -1,4 +1,4 @@
-"""Read-only text search capability for Empire OS projects."""
+"""Production-grade, read-only text search capability for Empire OS projects."""
 
 from __future__ import annotations
 
@@ -7,11 +7,13 @@ from typing import Any
 
 
 class ProjectSearchCapability:
-    """Search project text without modifying files."""
+    """Search project text with bounded, deterministic, auditable results."""
 
     name = "project_search"
     MAX_MATCHES = 200
     MAX_LINE_LENGTH = 500
+    MAX_QUERY_LENGTH = 200
+    EXCLUDED_PARTS = {".git", ".pytest_cache", "__pycache__"}
 
     def __init__(self, project_root: str | Path) -> None:
         self.project_root = Path(project_root).resolve()
@@ -38,29 +40,46 @@ class ProjectSearchCapability:
         query = self._extract_query(description)
         if not query:
             return CapabilityResult(False, self.name, {}, "Search query is required.")
+        if len(query) > self.MAX_QUERY_LENGTH:
+            return CapabilityResult(False, self.name, {}, f"Search query exceeds {self.MAX_QUERY_LENGTH} characters.")
+        if not self.project_root.is_dir():
+            return CapabilityResult(False, self.name, {}, "Project root does not exist.")
 
         matches: list[dict[str, Any]] = []
+        scanned_files = 0
+        truncated = False
+        query_lower = query.lower()
+
         try:
-            for path in self.project_root.rglob("*"):
-                if len(matches) >= self.MAX_MATCHES:
-                    break
-                if not path.is_file() or any(part in {".git", ".pytest_cache", "__pycache__"} for part in path.parts):
+            for path in sorted(self.project_root.rglob("*"), key=lambda item: str(item)):
+                if not path.is_file() or any(part in self.EXCLUDED_PARTS for part in path.parts):
+                    continue
+                try:
+                    resolved = path.resolve()
+                    resolved.relative_to(self.project_root)
+                except (OSError, ValueError):
                     continue
                 try:
                     text = path.read_text(encoding="utf-8")
                 except (OSError, UnicodeDecodeError):
                     continue
+
+                scanned_files += 1
                 for line_number, line in enumerate(text.splitlines(), start=1):
-                    if query.lower() in line.lower():
-                        matches.append(
-                            {
-                                "file": str(path.relative_to(self.project_root)),
-                                "line": line_number,
-                                "text": line[: self.MAX_LINE_LENGTH],
-                            }
-                        )
-                        if len(matches) >= self.MAX_MATCHES:
-                            break
+                    if query_lower not in line.lower():
+                        continue
+                    if len(matches) >= self.MAX_MATCHES:
+                        truncated = True
+                        break
+                    matches.append(
+                        {
+                            "file": str(path.relative_to(self.project_root)),
+                            "line": line_number,
+                            "text": line[: self.MAX_LINE_LENGTH],
+                        }
+                    )
+                if truncated:
+                    break
         except OSError as exc:
             return CapabilityResult(False, self.name, {}, str(exc))
 
@@ -71,7 +90,8 @@ class ProjectSearchCapability:
                 "query": query,
                 "matches": matches,
                 "match_count": len(matches),
-                "truncated": len(matches) >= self.MAX_MATCHES,
+                "truncated": truncated,
+                "scanned_files": scanned_files,
             },
             None,
         )
