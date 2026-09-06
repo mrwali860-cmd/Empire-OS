@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
 from pathlib import Path
@@ -71,6 +72,7 @@ class FileWriteCapability:
         if len(encoded) > self.MAX_BYTES:
             return CapabilityResult(False, self.name, {}, "File exceeds the write size limit.")
 
+        digest = hashlib.sha256(encoded).hexdigest()
         try:
             candidate.parent.mkdir(parents=True, exist_ok=True)
             fd, temp_name = tempfile.mkstemp(prefix=f".{candidate.name}.", dir=candidate.parent)
@@ -92,6 +94,10 @@ class FileWriteCapability:
         return CapabilityResult(
             True,
             self.name,
-            {"path": str(candidate.relative_to(self.project_root)), "bytes_written": len(encoded)},
+            {
+                "path": str(candidate.relative_to(self.project_root)),
+                "bytes_written": len(encoded),
+                "sha256": digest,
+            },
             None,
         )
