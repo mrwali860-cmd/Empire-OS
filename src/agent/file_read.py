@@ -36,13 +36,17 @@ class FileReadCapability:
         if not requested:
             return CapabilityResult(False, self.name, {}, "File path is required.")
 
-        candidate = (self.project_root / requested).resolve()
+        lexical_candidate = self.project_root / requested
+        if lexical_candidate.is_symlink():
+            return CapabilityResult(False, self.name, {}, "Symlink targets are not allowed.")
+
+        candidate = lexical_candidate.resolve()
         try:
             candidate.relative_to(self.project_root)
         except ValueError:
             return CapabilityResult(False, self.name, {}, "File path is outside the project root.")
 
-        if candidate.is_symlink() or not candidate.is_file():
+        if not candidate.is_file():
             return CapabilityResult(False, self.name, {}, "File does not exist or is not a regular file.")
 
         try:
