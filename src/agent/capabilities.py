@@ -148,19 +148,33 @@ class EmpireCapabilityExecutor:
         except CapabilityError:
             return False
 
-    @staticmethod
-    def _verify_file_read(result: CapabilityResult) -> bool:
+    def _verify_file_read(self, result: CapabilityResult) -> bool:
         data = result.data or {}
-        return (
+        path = data.get("path")
+        content = data.get("content")
+        char_count = data.get("char_count")
+        truncated = data.get("truncated")
+        if not (
             result.ok
             and result.error is None
-            and isinstance(data.get("path"), str)
-            and bool(data["path"])
-            and isinstance(data.get("content"), str)
-            and isinstance(data.get("char_count"), int)
-            and data["char_count"] >= len(data["content"])
-            and isinstance(data.get("truncated"), bool)
-        )
+            and isinstance(path, str)
+            and bool(path)
+            and isinstance(content, str)
+            and len(content) <= FileReadCapability.MAX_CHARS
+            and isinstance(char_count, int)
+            and not isinstance(char_count, bool)
+            and char_count >= 0
+            and char_count >= len(content)
+            and isinstance(truncated, bool)
+            and truncated is (char_count > len(content))
+        ):
+            return False
+        candidate = (self.project_root / path).resolve()
+        try:
+            candidate.relative_to(self.project_root)
+        except ValueError:
+            return False
+        return candidate.is_file() and not candidate.is_symlink()
 
     def _verify_file_write(self, result: CapabilityResult) -> bool:
         data = result.data or {}
