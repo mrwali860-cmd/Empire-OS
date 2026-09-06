@@ -131,7 +131,7 @@ class EmpireCapabilityExecutor:
     def __init__(self, project_root: str | Path | None = None) -> None:
         self.project_root = Path(project_root or Path(__file__).resolve().parents[2]).resolve()
         self.registry = CapabilityRegistry()
-        self.registry.register("file_read", FileReadCapability(self.project_root).execute, verifier=self._verify_file_read)
+        self.registry.register("file_read", FileReadCapability(self.project_root).execute, verifier=self._verify_file_read, input_validator=FileReadCapability.validate_task)
         self.registry.register("file_write", FileWriteCapability(self.project_root).execute, verifier=self._verify_file_write)
         self.registry.register("project_inspection", self.inspect_project, verifier=self._verify_project_inspection)
         self.registry.register("project_search", ProjectSearchCapability(self.project_root).execute, verifier=self._verify_project_search)
