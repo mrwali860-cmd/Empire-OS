@@ -20,10 +20,11 @@ class FileWriteCapability:
 
     @staticmethod
     def _extract_request(description: str) -> tuple[str, str, bool]:
-        text = description.strip()
+        text = description
         prefix = "Execute planned step: "
         if text.lower().startswith(prefix.lower()):
-            text = text[len(prefix):].strip()
+            text = text[len(prefix):]
+        text = text.lstrip()
 
         marker = "write file:"
         if not text.lower().startswith(marker):
