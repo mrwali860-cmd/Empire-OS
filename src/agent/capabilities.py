@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -161,17 +162,26 @@ class EmpireCapabilityExecutor:
             and isinstance(data.get("truncated"), bool)
         )
 
-    @staticmethod
-    def _verify_file_write(result: CapabilityResult) -> bool:
+    def _verify_file_write(self, result: CapabilityResult) -> bool:
         data = result.data or {}
-        return (
+        if not (
             result.ok
             and result.error is None
             and isinstance(data.get("path"), str)
             and bool(data["path"])
             and isinstance(data.get("bytes_written"), int)
             and 0 <= data["bytes_written"] <= FileWriteCapability.MAX_BYTES
-        )
+            and isinstance(data.get("sha256"), str)
+            and len(data["sha256"]) == 64
+        ):
+            return False
+        candidate = (self.project_root / data["path"]).resolve()
+        try:
+            candidate.relative_to(self.project_root)
+            payload = candidate.read_bytes()
+        except (OSError, ValueError):
+            return False
+        return len(payload) == data["bytes_written"] and hashlib.sha256(payload).hexdigest() == data["sha256"]
 
     @staticmethod
     def _verify_project_inspection(result: CapabilityResult) -> bool:
