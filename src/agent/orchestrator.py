@@ -41,6 +41,7 @@ class EmpireOrchestrator:
     def __init__(self, capability_executor=None, audit=None) -> None:
         self.routes: dict[str, str] = {
             "file_read": "file_read",
+            "file_write": "file_write",
             "inspect_project": "project_inspection",
             "project_search": "project_search",
             "run_tests": "test_runner",
@@ -186,6 +187,7 @@ class EmpireOrchestrator:
             route = self.route(task)
             if not route.accepted:
                 task.reject(route.reason)
+                self._audit(task, route.capability, "rejected", False, error=route.reason)
                 return self._result(
                     status=OrchestrationStatus.REJECTED.value,
                     plan_id=plan.get("plan_id"),
