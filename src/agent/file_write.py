@@ -42,12 +42,15 @@ class FileWriteCapability:
         path_text, content = self._extract_request(str(getattr(task, "description", "")))
         if not path_text:
             return CapabilityResult(False, self.name, {}, "File path is required.")
-        candidate = (self.project_root / path_text).resolve()
+        lexical_candidate = self.project_root / path_text
+        if lexical_candidate.is_symlink():
+            return CapabilityResult(False, self.name, {}, "Symlink targets are not allowed.")
+        candidate = lexical_candidate.resolve()
         try:
             candidate.relative_to(self.project_root)
         except ValueError:
             return CapabilityResult(False, self.name, {}, "File path is outside the project root.")
-        if candidate.is_symlink() or candidate == self.project_root:
+        if candidate == self.project_root:
             return CapabilityResult(False, self.name, {}, "Target must be a regular file inside the project root.")
         try:
             encoded = content.encode("utf-8")
