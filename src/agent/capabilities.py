@@ -132,7 +132,7 @@ class EmpireCapabilityExecutor:
         self.project_root = Path(project_root or Path(__file__).resolve().parents[2]).resolve()
         self.registry = CapabilityRegistry()
         self.registry.register("file_read", FileReadCapability(self.project_root).execute, verifier=self._verify_file_read, input_validator=FileReadCapability.validate_task)
-        self.registry.register("file_write", FileWriteCapability(self.project_root).execute, verifier=self._verify_file_write)
+        self.registry.register("file_write", FileWriteCapability(self.project_root).execute, verifier=self._verify_file_write, input_validator=FileWriteCapability.validate_task)
         self.registry.register("project_inspection", self.inspect_project, verifier=self._verify_project_inspection)
         self.registry.register("project_search", ProjectSearchCapability(self.project_root).execute, verifier=self._verify_project_search)
         self.registry.register("test_runner", self.run_tests, verifier=self._verify_test_runner)
