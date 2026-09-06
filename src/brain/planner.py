@@ -64,6 +64,8 @@ class ExecutionPlanner:
                 actions.append(match.group(1))
         if not actions and decision_text.strip():
             actions.append(decision_text.strip())
+        if actions and decision_text.endswith("\n") and any("write file:" in action.lower() or "create file:" in action.lower() for action in actions[-1:]):
+            actions[-1] += "\n"
         return actions
 
     @classmethod
