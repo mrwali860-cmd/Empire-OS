@@ -1,6 +1,6 @@
 """
 Empire OS
-Task Orchestrator — v0.12
+Task Orchestrator — v0.13
 
 Flow:
 Plan → Validate → Route → Permission → Execute → Verify → Evidence → Audit → Next Task
@@ -36,7 +36,7 @@ class RouteDecision:
 
 
 class EmpireOrchestrator:
-    """Deterministic coordinator backed by an allow-listed capability layer."""
+    """Deterministic coordinator backed by explicit capability contracts."""
 
     def __init__(self, capability_executor=None, audit=None) -> None:
         self.routes: dict[str, str] = {
@@ -90,11 +90,10 @@ class EmpireOrchestrator:
         if not isinstance(tasks, list) or not tasks:
             return "Plan must include at least one task."
         seen_ids: set[str] = set()
-        required = ("id", "action")
         for index, raw in enumerate(tasks, start=1):
             if not isinstance(raw, dict):
                 return f"Task {index} must be a dictionary."
-            missing = [key for key in required if not str(raw.get(key, "")).strip()]
+            missing = [key for key in ("id", "action") if not str(raw.get(key, "")).strip()]
             if missing:
                 return f"Task {index} is missing required field(s): {', '.join(missing)}."
             task_id = str(raw["id"])
@@ -106,11 +105,7 @@ class EmpireOrchestrator:
     def _verify_output(self, capability: str, output: Any, verifier, task: Task, *, injected_executor: bool) -> bool:
         if verifier is not None:
             return bool(verifier(task, output))
-        if isinstance(output, CapabilityResult):
-            return bool(self.capability_executor.verify(capability, output))
-        if injected_executor and isinstance(output, dict):
-            return True
-        return False
+        return self.capability_executor.verify(capability, output)
 
     def _audit(self, task: Task, capability: str, status: str, verified: bool, output: Any = None, error: str | None = None) -> None:
         self.audit.record(AuditRecord(task.id, task.command, capability, status, verified, error, self._evidence(output)))
@@ -134,12 +129,8 @@ class EmpireOrchestrator:
         self.audit.clear()
         validation_error = self._validate_plan(plan)
         if validation_error:
-            if isinstance(plan, dict):
-                plan_id = plan.get("plan_id")
-                goal = plan.get("goal", "")
-            else:
-                plan_id = None
-                goal = ""
+            plan_id = plan.get("plan_id") if isinstance(plan, dict) else None
+            goal = plan.get("goal", "") if isinstance(plan, dict) else ""
             return self._result(status=OrchestrationStatus.FAILED.value, plan_id=plan_id, goal=goal, tasks=[], completed_tasks=0, failed_task_id=None, error=validation_error, capability_results=[])
 
         tasks = [self._task_from_plan(raw) for raw in plan["tasks"]]
