@@ -17,20 +17,24 @@ class FileWriteCapability:
 
     @staticmethod
     def _extract_request(description: str) -> tuple[str, str]:
-        text = description.strip()
+        text = description
         prefix = "Execute planned step: "
         if text.lower().startswith(prefix.lower()):
-            text = text[len(prefix):].strip()
+            text = text[len(prefix):]
         marker = "write file:"
-        if not text.lower().startswith(marker):
+        if not text.lstrip().lower().startswith(marker):
             return "", ""
-        text = text[len(marker):].strip()
+        leading = len(text) - len(text.lstrip())
+        text = text[leading + len(marker):]
         separator = " content:"
-        lower = text.lower()
-        index = lower.find(separator)
+        index = text.lower().find(separator)
         if index < 0:
-            return text, ""
-        return text[:index].strip(), text[index + len(separator):].lstrip()
+            return text.strip(), ""
+        path_text = text[:index].strip()
+        content = text[index + len(separator):]
+        if content.startswith(" "):
+            content = content[1:]
+        return path_text, content
 
     def execute(self, task: Any = None):
         from .capabilities import CapabilityResult
