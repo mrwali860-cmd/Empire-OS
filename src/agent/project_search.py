@@ -21,7 +21,7 @@ class ProjectSearchCapability:
     @staticmethod
     def _extract_query(description: str) -> str:
         query = description.strip()
-        prefix = "Execute planned step: "
+        prefix = "Execute planned step:"
         if query.lower().startswith(prefix.lower()):
             query = query[len(prefix):].strip()
 
@@ -71,13 +71,7 @@ class ProjectSearchCapability:
                     if len(matches) >= self.MAX_MATCHES:
                         truncated = True
                         break
-                    matches.append(
-                        {
-                            "file": str(path.relative_to(self.project_root)),
-                            "line": line_number,
-                            "text": line[: self.MAX_LINE_LENGTH],
-                        }
-                    )
+                    matches.append({"file": str(path.relative_to(self.project_root)), "line": line_number, "text": line[: self.MAX_LINE_LENGTH]})
                 if truncated:
                     break
         except OSError as exc:
@@ -86,12 +80,6 @@ class ProjectSearchCapability:
         return CapabilityResult(
             True,
             self.name,
-            {
-                "query": query,
-                "matches": matches,
-                "match_count": len(matches),
-                "truncated": truncated,
-                "scanned_files": scanned_files,
-            },
+            {"query": query, "matches": matches, "match_count": len(matches), "truncated": truncated, "scanned_files": scanned_files},
             None,
         )
