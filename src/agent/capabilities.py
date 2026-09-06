@@ -200,13 +200,20 @@ class EmpireCapabilityExecutor:
     @staticmethod
     def _verify_project_inspection(result: CapabilityResult) -> bool:
         data = result.data or {}
+        project_root = data.get("project_root")
+        files = data.get("files")
+        directories = data.get("directories")
         return (
             result.ok
             and result.error is None
-            and isinstance(data.get("files"), int)
-            and data["files"] >= 0
-            and isinstance(data.get("directories"), int)
-            and data["directories"] >= 0
+            and isinstance(project_root, str)
+            and bool(project_root)
+            and isinstance(files, int)
+            and not isinstance(files, bool)
+            and files >= 0
+            and isinstance(directories, int)
+            and not isinstance(directories, bool)
+            and directories >= 0
         )
 
     @staticmethod
