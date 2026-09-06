@@ -21,14 +21,7 @@ class DecisionEngineCapability:
     MAX_CONTEXT_BYTES = 100_000
     MAX_TEXT_LENGTH = 2_000
 
-    _OPTION_NUMERIC_FIELDS = (
-        "roi",
-        "risk",
-        "alignment",
-        "impact",
-        "execution_time",
-        "cost",
-    )
+    _OPTION_NUMERIC_FIELDS = ("roi", "risk", "alignment", "impact", "execution_time", "cost")
     _OPTION_TEXT_FIELDS = ("id", "title", "description")
 
     def __init__(self) -> None:
@@ -48,8 +41,7 @@ class DecisionEngineCapability:
     def validate_payload(cls, payload: Any) -> bool:
         if not isinstance(payload, dict):
             return False
-        context = payload.get("raw_context")
-        options = payload.get("options")
+        context, options = payload.get("raw_context"), payload.get("options")
         if not isinstance(context, dict) or not isinstance(options, list) or not (1 <= len(options) <= cls.MAX_OPTIONS):
             return False
         try:
@@ -57,10 +49,7 @@ class DecisionEngineCapability:
                 return False
         except (TypeError, ValueError):
             return False
-        for option in options:
-            if not cls._valid_option(option):
-                return False
-        return True
+        return all(cls._valid_option(option) for option in options)
 
     @classmethod
     def _valid_option(cls, option: Any) -> bool:
@@ -84,21 +73,13 @@ class DecisionEngineCapability:
 
     @staticmethod
     def _option(option: dict[str, Any]) -> DecisionOption:
-        return DecisionOption(
-            id=option["id"],
-            title=option["title"],
-            description=option["description"],
-            roi=option["roi"],
-            risk=option["risk"],
-            alignment=option["alignment"],
-            impact=option["impact"],
-            execution_time=option["execution_time"],
-            cost=option["cost"],
-        )
+        return DecisionOption(id=option["id"], title=option["title"], description=option["description"], roi=option["roi"], risk=option["risk"], alignment=option["alignment"], impact=option["impact"], execution_time=option["execution_time"], cost=option["cost"])
 
     @staticmethod
     def _result_dict(result: Any) -> dict[str, Any]:
-        return asdict(result)
+        value = asdict(result)
+        value["confidence"] = max(0.0, min(1.0, float(result.confidence) / 100.0))
+        return value
 
     def execute(self, task: Task) -> CapabilityResult:
         payload = self.parse_task(task)
@@ -109,25 +90,13 @@ class DecisionEngineCapability:
             evaluated = []
             for raw_option in payload["options"]:
                 option = self._option(raw_option)
-                result = self.engine.evaluator.evaluate(
-                    option=option,
-                    roi=option.roi,
-                    risk=option.risk,
-                    alignment=option.alignment,
-                    impact=option.impact,
-                    execution_time=option.execution_time,
-                    cost=option.cost,
-                )
+                result = self.engine.evaluator.evaluate(option=option, roi=option.roi, risk=option.risk, alignment=option.alignment, impact=option.impact, execution_time=option.execution_time, cost=option.cost)
                 result.reasons = self.engine.explainer.explain(result)
                 evaluated.append(result)
             ranked = self.engine.ranking.rank(evaluated)
             recommended = self.engine.recommender.recommend(ranked)
             alternatives = self.engine.recommender.alternatives(ranked)
-            data = {
-                "context": asdict(context),
-                "recommended": self._result_dict(recommended),
-                "alternatives": [self._result_dict(item) for item in alternatives],
-            }
+            data = {"context": asdict(context), "recommended": self._result_dict(recommended), "alternatives": [self._result_dict(item) for item in alternatives]}
             return CapabilityResult(True, "decision_engine", data, None)
         except Exception:
             return CapabilityResult(False, "decision_engine", {}, "Decision engine evaluation failed.")
