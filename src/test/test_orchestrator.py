@@ -1,6 +1,6 @@
 from src.agent.capabilities import EmpireCapabilityExecutor
 from src.agent.orchestrator import EmpireOrchestrator, OrchestrationStatus
-from src.agent.tasks import Task
+from src.agent.tasks import Task, TaskStatus
 
 
 def make_task(command="run_tests", requires_permission=False):
@@ -83,6 +83,33 @@ def test_orchestrator_executes_plan_in_order():
     assert calls == ["TASK-001", "TASK-002"]
 
 
+def test_orchestrator_returns_completed_task_results():
+    plan = {
+        "status": "READY",
+        "plan_id": "PLAN-RESULTS",
+        "goal": "Run tests",
+        "tasks": [
+            {
+                "id": "TASK-001",
+                "title": "Run tests",
+                "description": "Run the test suite",
+                "action": "run_tests",
+                "requires_permission": False,
+            }
+        ],
+    }
+
+    result = EmpireOrchestrator().execute_plan(
+        plan,
+        executor=lambda task: {"ok": True, "summary": "passed"},
+    )
+
+    assert result["status"] == OrchestrationStatus.COMPLETED.value
+    assert result["task_results"][0]["status"] == TaskStatus.COMPLETED.value
+    assert result["task_results"][0]["result"] == {"ok": True, "summary": "passed"}
+    assert result["current_task"] is None
+
+
 def test_orchestrator_stops_when_permission_is_missing():
     plan = {
         "status": "READY",
@@ -110,6 +137,7 @@ def test_orchestrator_stops_when_permission_is_missing():
     assert result["status"] == OrchestrationStatus.REJECTED.value
     assert result["completed_tasks"] == 0
     assert result["failed_task_id"] == "TASK-001"
+    assert result["task_results"][0]["status"] == TaskStatus.REJECTED.value
 
 
 def test_orchestrator_stops_on_failed_verification():
@@ -160,4 +188,6 @@ def test_orchestrator_stops_on_failed_verification():
     assert result["status"] == OrchestrationStatus.FAILED.value
     assert result["completed_tasks"] == 0
     assert result["failed_task_id"] == "TASK-001"
+    assert result["task_results"][0]["status"] == TaskStatus.FAILED.value
+    assert result["task_results"][1]["status"] == TaskStatus.PENDING.value
     assert calls == ["TASK-001"]
