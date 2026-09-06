@@ -22,6 +22,15 @@ def test_orchestrator_routes_supported_task():
     assert decision.capability == "test_runner"
 
 
+def test_orchestrator_routes_file_write_capability():
+    orchestrator = EmpireOrchestrator()
+
+    decision = orchestrator.route(make_task(command="file_write"))
+
+    assert decision.accepted is True
+    assert decision.capability == "file_write"
+
+
 def test_orchestrator_rejects_unknown_task():
     orchestrator = EmpireOrchestrator()
 
@@ -138,6 +147,31 @@ def test_orchestrator_stops_when_permission_is_missing():
     assert result["completed_tasks"] == 0
     assert result["failed_task_id"] == "TASK-001"
     assert result["task_results"][0]["status"] == TaskStatus.REJECTED.value
+    assert result["audit"][0]["status"] == "rejected"
+
+
+def test_orchestrator_stops_on_unknown_task_and_audits_rejection():
+    plan = {
+        "status": "READY",
+        "plan_id": "PLAN-UNKNOWN",
+        "goal": "Handle unknown command",
+        "tasks": [
+            {
+                "id": "TASK-UNKNOWN",
+                "title": "Unknown",
+                "description": "Unknown command",
+                "action": "unknown",
+                "requires_permission": False,
+            }
+        ],
+    }
+
+    result = EmpireOrchestrator().execute_plan(plan)
+
+    assert result["status"] == OrchestrationStatus.REJECTED.value
+    assert result["failed_task_id"] == "TASK-UNKNOWN"
+    assert result["audit"][0]["status"] == "rejected"
+    assert "No capability" in result["audit"][0]["error"]
 
 
 def test_orchestrator_stops_on_failed_verification():
