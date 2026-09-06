@@ -39,11 +39,24 @@ def test_file_write_input_contract_rejects_missing_path(tmp_path: Path):
         executor.execute("file_write", make_task("Execute planned step: write file: content: hello"))
 
 
+def test_file_write_input_contract_rejects_missing_content_marker(tmp_path: Path):
+    executor = EmpireCapabilityExecutor(project_root=tmp_path)
+    with pytest.raises(CapabilityError, match="Invalid input"):
+        executor.execute("file_write", make_task("Execute planned step: write file: app.py hello"))
+
+
+def test_file_write_input_contract_rejects_wrong_command_shape(tmp_path: Path):
+    executor = EmpireCapabilityExecutor(project_root=tmp_path)
+    with pytest.raises(CapabilityError, match="Invalid input"):
+        executor.execute("file_write", make_task("Execute planned step: read file: app.py"))
+
+
 def test_file_write_input_validator_is_registered(tmp_path: Path):
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
     contract = executor.registry.get("file_write")
     assert contract.validate_input(make_task("Execute planned step: write file: app.py content: hello")) is True
     assert contract.validate_input(make_task("Execute planned step: write file: content: hello")) is False
+    assert contract.validate_input(make_task("Execute planned step: write file: app.py hello")) is False
 
 
 def test_file_write_requires_permission_before_mutation(tmp_path: Path):
