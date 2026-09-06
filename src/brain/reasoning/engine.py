@@ -49,8 +49,18 @@ class ReasoningEngine:
 
     @staticmethod
     def _file_write_request(text: str) -> str:
+        """Remove a user-supplied write verb before emitting the canonical action."""
         normalized = text.strip()
-        prefixes = ("write file ", "create file ", "save file ", "update file ")
+        prefixes = (
+            "write file:",
+            "write file ",
+            "create file:",
+            "create file ",
+            "save file:",
+            "save file ",
+            "update file:",
+            "update file ",
+        )
         lowered = normalized.lower()
         for prefix in prefixes:
             if lowered.startswith(prefix):
