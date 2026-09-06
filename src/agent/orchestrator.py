@@ -105,6 +105,8 @@ class EmpireOrchestrator:
     def _verify_output(self, capability: str, output: Any, verifier, task: Task, *, injected_executor: bool) -> bool:
         if verifier is not None:
             return bool(verifier(task, output))
+        if injected_executor and isinstance(output, dict):
+            return bool(output.get("ok", False))
         return self.capability_executor.verify(capability, output)
 
     def _audit(self, task: Task, capability: str, status: str, verified: bool, output: Any = None, error: str | None = None) -> None:
