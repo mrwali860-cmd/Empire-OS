@@ -1,6 +1,8 @@
 from pathlib import Path
 
-from src.agent.capabilities import CapabilityResult, EmpireCapabilityExecutor
+import pytest
+
+from src.agent.capabilities import CapabilityError, CapabilityResult, EmpireCapabilityExecutor
 from src.agent.orchestrator import EmpireOrchestrator, OrchestrationStatus
 from src.agent.tasks import Task
 from src.agent.file_write import FileWriteCapability
@@ -33,9 +35,8 @@ def make_plan(description: str, permission: bool = True) -> dict:
 
 def test_file_write_input_contract_rejects_missing_path(tmp_path: Path):
     executor = EmpireCapabilityExecutor(project_root=tmp_path)
-    result = executor.execute("file_write", make_task("Execute planned step: write file: content: hello"))
-    assert result.ok is False
-    assert result.error == "File path is required."
+    with pytest.raises(CapabilityError, match="Invalid input"):
+        executor.execute("file_write", make_task("Execute planned step: write file: content: hello"))
 
 
 def test_file_write_input_validator_is_registered(tmp_path: Path):
