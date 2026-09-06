@@ -79,7 +79,7 @@ class ExecutionPlanner:
     def plan(self, decision):
         if not decision or decision.get("status") != "APPROVED":
             return {"status": "FAILED", "plan_id": None, "goal": "", "tasks": [], "verification_required": True}
-        decision_text = str(decision.get("decision", "")).strip()
+        decision_text = str(decision.get("decision", ""))
         actions = self._extract_actions(decision_text)
         plan_id = self._plan_id(decision_text)
         goal = self._extract_goal(decision_text)
