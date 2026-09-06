@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from src.agent.capabilities import CapabilityError, CapabilityResult, EmpireCapabilityExecutor
+from src.agent.file_read import FileReadCapability
 from src.agent.orchestrator import EmpireOrchestrator, OrchestrationStatus
 from src.agent.tasks import Task
 
@@ -76,16 +77,52 @@ def test_file_read_output_contract_rejects_inconsistent_char_count(tmp_path: Pat
     assert executor.verify("file_read", malformed) is False
 
 
+def test_file_read_output_contract_rejects_content_over_max_chars(tmp_path: Path):
+    executor = EmpireCapabilityExecutor(project_root=tmp_path)
+    malformed = CapabilityResult(
+        True,
+        "file_read",
+        {"path": "app.py", "content": "x" * (FileReadCapability.MAX_CHARS + 1), "char_count": FileReadCapability.MAX_CHARS + 1, "truncated": False},
+    )
+    assert executor.verify("file_read", malformed) is False
+
+
+def test_file_read_output_contract_rejects_negative_char_count(tmp_path: Path):
+    executor = EmpireCapabilityExecutor(project_root=tmp_path)
+    malformed = CapabilityResult(True, "file_read", {"path": "app.py", "content": "", "char_count": -1, "truncated": False})
+    assert executor.verify("file_read", malformed) is False
+
+
+def test_file_read_output_contract_rejects_inconsistent_truncation(tmp_path: Path):
+    executor = EmpireCapabilityExecutor(project_root=tmp_path)
+    not_truncated = CapabilityResult(True, "file_read", {"path": "app.py", "content": "abc", "char_count": 4, "truncated": False})
+    truncated = CapabilityResult(True, "file_read", {"path": "app.py", "content": "abc", "char_count": 3, "truncated": True})
+    assert executor.verify("file_read", not_truncated) is False
+    assert executor.verify("file_read", truncated) is False
+
+
+def test_file_read_output_contract_rejects_path_outside_project(tmp_path: Path):
+    executor = EmpireCapabilityExecutor(project_root=tmp_path)
+    malformed = CapabilityResult(True, "file_read", {"path": "../secret.txt", "content": "x", "char_count": 1, "truncated": False})
+    assert executor.verify("file_read", malformed) is False
+
+
+def test_file_read_output_contract_rejects_missing_path(tmp_path: Path):
+    executor = EmpireCapabilityExecutor(project_root=tmp_path)
+    malformed = CapabilityResult(True, "file_read", {"path": "missing.txt", "content": "x", "char_count": 1, "truncated": False})
+    assert executor.verify("file_read", malformed) is False
+
+
 def test_file_read_truncation_contract(tmp_path: Path):
     target = tmp_path / "large.txt"
-    target.write_text("x" * (EmpireCapabilityExecutor(project_root=tmp_path).registry.get("file_read").handler.__self__.MAX_CHARS + 10), encoding="utf-8")
+    target.write_text("x" * (FileReadCapability.MAX_CHARS + 10), encoding="utf-8")
     result = EmpireCapabilityExecutor(project_root=tmp_path).execute(
         "file_read", make_task(description="read file large.txt")
     )
     assert result.ok is True
     assert result.data["truncated"] is True
-    assert len(result.data["content"]) == 20_000
-    assert result.data["char_count"] == 20_010
+    assert len(result.data["content"]) == FileReadCapability.MAX_CHARS
+    assert result.data["char_count"] == FileReadCapability.MAX_CHARS + 10
     assert EmpireCapabilityExecutor(project_root=tmp_path).verify("file_read", result) is True
 
 
