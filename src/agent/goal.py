@@ -62,6 +62,12 @@ class GoalEngine:
     ) -> FounderGoal:
         """Create and store a founder goal."""
 
+        if not isinstance(title, str):
+            raise TypeError("Goal title must be a string.")
+
+        if not isinstance(description, str):
+            raise TypeError("Goal description must be a string.")
+
         if not title.strip():
             raise ValueError("Goal title cannot be empty.")
 
