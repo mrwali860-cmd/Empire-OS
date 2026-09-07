@@ -67,6 +67,11 @@ class BrainPipeline:
         allow-listed capability layer unless an executor is explicitly
         injected for testing or specialized integrations.
         """
+        if not isinstance(user_input, str):
+            raise TypeError("User input must be a string.")
+        if not user_input.strip():
+            raise ValueError("User input must not be empty.")
+
         print("Pipeline Started")
 
         intent = self.intent.detect(user_input)
@@ -113,6 +118,8 @@ class BrainPipeline:
             context,
             orchestration_result=orchestration_result,
         )
-        print(f"Response: {response}")
+        if not isinstance(response, str) or not response.strip():
+            raise ValueError("Pipeline response must be a non-empty string.")
 
+        print(f"Response: {response}")
         return response
