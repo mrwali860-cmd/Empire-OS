@@ -22,6 +22,12 @@ class TaskEngine:
     def add_task(self, task: Task) -> Task:
         """Add a new task to the queue."""
 
+        if not isinstance(task, Task):
+            raise TypeError("Task must be a Task instance.")
+
+        if not isinstance(task.id, str) or not task.id.strip():
+            raise ValueError("Task ID must be a non-empty string.")
+
         if task.id in self._tasks:
             raise ValueError(
                 f"Task already exists: {task.id}"
