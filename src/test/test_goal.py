@@ -47,6 +47,26 @@ def test_create_goal_rejects_empty_description():
         )
 
 
+def test_create_goal_rejects_non_string_title():
+    engine = make_engine()
+
+    with pytest.raises(TypeError):
+        engine.create_goal(
+            title=None,
+            description="Build the system.",
+        )
+
+
+def test_create_goal_rejects_non_string_description():
+    engine = make_engine()
+
+    with pytest.raises(TypeError):
+        engine.create_goal(
+            title="Build Empire OS",
+            description=None,
+        )
+
+
 def test_get_goal():
     engine = make_engine()
 
