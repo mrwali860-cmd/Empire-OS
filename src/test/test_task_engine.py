@@ -154,3 +154,5 @@ def test_summary_counts_all_lifecycle_states():
         TaskStatus.FAILED.value: 1,
         TaskStatus.REJECTED.value: 1,
     }
+
+# CI trigger marker: no functional behavior change.
