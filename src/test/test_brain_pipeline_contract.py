@@ -21,3 +21,6 @@ def test_pipeline_rejects_empty_user_input():
     pipeline = BrainPipeline.__new__(BrainPipeline)
     with pytest.raises(ValueError, match="User input must not be empty"):
         pipeline.process("   ")
+
+
+# CI trigger marker: contract tests unchanged.
