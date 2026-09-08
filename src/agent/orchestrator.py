@@ -58,7 +58,7 @@ class EmpireOrchestrator:
         command = self.classify(task)
         capability = self.routes.get(command)
         if capability is None:
-            return RouteDecision(task.id, command, "", False, f"No capability registered for command: {command}")
+            return RouteDecision(task.id, command, "unknown", False, f"No capability registered for command: {command}")
         if not self.capability_executor.registry.has(capability):
             return RouteDecision(task.id, command, capability, False, f"Capability is not registered: {capability}")
         return RouteDecision(task.id, command, capability, True, "Route accepted.")
