@@ -1,1 +1,2 @@
 Audit/Evidence CI verification trigger. No product or test logic change.
+Verification checkpoint: rejected capability identity contract aligned.
