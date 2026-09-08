@@ -44,11 +44,12 @@ def test_audit_records_failed_execution():
 
 def test_audit_records_rejected_execution():
     audit = ExecutionAudit()
-    audit.record(AuditRecord("TASK-001", "unknown", "", "rejected", False, "No capability registered."))
+    audit.record(AuditRecord("TASK-001", "unknown", "unknown", "rejected", False, "No capability registered."))
 
     record = audit.records[0]
     assert record.status == "rejected"
     assert record.verified is False
+    assert record.capability == "unknown"
 
 
 def test_audit_is_immutable_snapshot():
