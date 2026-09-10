@@ -1,0 +1,2 @@
+Orchestrator CI verification trigger.
+No product logic change beyond contract hardening and focused contract tests.
