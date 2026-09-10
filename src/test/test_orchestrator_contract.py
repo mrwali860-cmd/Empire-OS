@@ -58,13 +58,13 @@ def test_executor_verifier_and_approval_types_are_validated():
 def test_task_identity_is_not_coerced():
     orchestrator = EmpireOrchestrator()
     result = orchestrator.execute_plan(ready_plan(tasks=[{"id": 123, "action": "run_tests"}]))
-    assert result["error"] == "Task 1 must include a non-empty string id."
+    assert result["error"] == "Task 1 is missing required field(s): id."
 
 
 def test_action_identity_is_not_coerced():
     orchestrator = EmpireOrchestrator()
     result = orchestrator.execute_plan(ready_plan(tasks=[{"id": "TASK-1", "action": 123}]))
-    assert result["error"] == "Task 1 must include a non-empty string action."
+    assert result["error"] == "Task 1 is missing required field(s): action."
 
 
 def test_classify_rejects_non_task():
