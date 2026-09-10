@@ -135,9 +135,9 @@ class EmpireOrchestrator:
             task_id = raw.get("id")
             action = raw.get("action")
             if not isinstance(task_id, str) or not task_id.strip():
-                return f"Task {index} must include a non-empty string id."
+                return f"Task {index} is missing required field(s): id."
             if not isinstance(action, str) or not action.strip():
-                return f"Task {index} must include a non-empty string action."
+                return f"Task {index} is missing required field(s): action."
             if task_id in seen_ids:
                 return f"Duplicate task id: {task_id}"
             seen_ids.add(task_id)
