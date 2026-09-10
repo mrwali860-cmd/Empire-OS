@@ -1,0 +1,3 @@
+Orchestrator contract CI verification trigger.
+No product logic change.
+Focused contract tests aligned with the locked missing-field error messages.
