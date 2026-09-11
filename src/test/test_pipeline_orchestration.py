@@ -19,9 +19,9 @@ class StubPlanner:
     def plan(self, decision):
         return {"status": "READY", "plan_id": "PLAN-INTEGRATION", "goal": "Run project tests", "tasks": [{"id": "PLAN-INTEGRATION-T01", "title": "Run tests", "description": "Execute planned step: Run tests", "action": "run_tests", "requires_permission": False, "verification": "Verify the outcome.", "status": "PENDING"}], "verification_required": True}
 class StubOrchestrator:
-    def __init__(self): self.received_plan = None
-    def execute_plan(self, plan, *, executor, verifier=None, approved=False):
-        self.received_plan = plan
+    def __init__(self): self.received_plan = None; self.received_request_id = None
+    def execute_plan(self, plan, *, executor, verifier=None, approved=False, request_id=None):
+        self.received_plan = plan; self.received_request_id = request_id
         return {"status": "completed", "plan_id": plan["plan_id"], "goal": plan["goal"], "completed_tasks": 1, "failed_task_id": None, "error": None}
 class StubLLM:
     def reason(self, payload): return {"goal": "Run project tests", "assumptions": [], "constraints": [], "next_actions": ["Run tests"], "confidence": 1.0}
@@ -38,6 +38,7 @@ def test_pipeline_sends_plan_to_orchestrator_when_execution_enabled():
     orchestrator = StubOrchestrator()
     result = configured_pipeline(orchestrator).process("run the project tests", execute=True, approved=True, executor=lambda task: {"ok": True})
     assert orchestrator.received_plan["goal"] == "Run project tests"
+    assert orchestrator.received_request_id is None
     assert "Execution Status: COMPLETED" in result
     assert "Completed Tasks: 1" in result
 
