@@ -39,6 +39,7 @@ class AuditRecord:
     verified: bool
     error: str | None = None
     result: dict[str, Any] | None = None
+    request_id: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.task_id, str):
@@ -59,10 +60,18 @@ class AuditRecord:
             raise TypeError("verified must be a bool")
         if self.error is not None and not isinstance(self.error, str):
             raise TypeError("error must be a string or None")
+        if self.request_id is not None:
+            if not isinstance(self.request_id, str):
+                raise TypeError("request_id must be a string or None")
+            if not self.request_id.strip():
+                raise ValueError("request_id must be non-empty when provided")
+            if len(self.request_id) > 200:
+                raise ValueError("request_id exceeds 200 characters")
         _validate_result(self.result)
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "request_id": self.request_id,
             "task_id": self.task_id,
             "command": self.command,
             "capability": self.capability,
