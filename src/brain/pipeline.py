@@ -27,22 +27,10 @@ class BrainPipeline:
         self.response = ResponseBuilder()
 
     def _reason(self, user_input, intent, context, thinking_result):
-        payload = {
-            "user_input": user_input,
-            "intent": intent,
-            "context": context,
-            "current_strategy": thinking_result,
-        }
-
+        payload = {"user_input": user_input, "intent": intent, "context": context, "current_strategy": thinking_result}
         try:
             llm_output = self.llm.reason(payload)
-            result = ReasoningResult(
-                goal=str(llm_output.get("goal", user_input.strip())),
-                assumptions=tuple(str(x) for x in llm_output.get("assumptions", [])),
-                constraints=tuple(str(x) for x in llm_output.get("constraints", [])),
-                next_actions=tuple(str(x) for x in llm_output.get("next_actions", [])),
-                confidence=float(llm_output.get("confidence", 0.0)),
-            )
+            result = ReasoningResult(goal=str(llm_output.get("goal", user_input.strip())), assumptions=tuple(str(x) for x in llm_output.get("assumptions", [])), constraints=tuple(str(x) for x in llm_output.get("constraints", [])), next_actions=tuple(str(x) for x in llm_output.get("next_actions", [])), confidence=float(llm_output.get("confidence", 0.0)))
             check = self.verifier.verify(result.as_dict())
             if check["verified"]:
                 print("Reasoning Source: LLM")
@@ -50,76 +38,40 @@ class BrainPipeline:
             print(f"LLM reasoning rejected: {check['reason']}")
         except (LLMConfigError, LLMProviderError, ValueError, TypeError, KeyError, AttributeError) as exc:
             print(f"LLM unavailable: {exc}")
-
-        fallback = self.reasoning.reason(
-            user_input=user_input,
-            intent=intent,
-            context=context,
-            thinking_result=thinking_result,
-        )
+        fallback = self.reasoning.reason(user_input=user_input, intent=intent, context=context, thinking_result=thinking_result)
         print("Reasoning Source: DETERMINISTIC_FALLBACK")
         return fallback
 
-    def process(self, user_input, *, execute=False, approved=False, executor=None, task_verifier=None):
-        """Process a request and optionally execute its validated plan.
-
-        Execution is opt-in. When enabled, the orchestrator uses its
-        allow-listed capability layer unless an executor is explicitly
-        injected for testing or specialized integrations.
-        """
+    def process(self, user_input, *, execute=False, approved=False, executor=None, task_verifier=None, request_id=None):
+        """Process a request and optionally execute its validated plan with request identity preserved."""
         if not isinstance(user_input, str):
             raise TypeError("User input must be a string.")
         if not user_input.strip():
             raise ValueError("User input must not be empty.")
-
         print("Pipeline Started")
-
         intent = self.intent.detect(user_input)
         print(f"Intent: {intent}")
-
         context = self.context.analyze(user_input)
         print(f"Context: {context}")
-
         thinking_result = self.thinking.think(intent, context)
         print(f"Thinking: {thinking_result}")
-
-        reasoning_result = self._reason(
-            user_input=user_input,
-            intent=intent,
-            context=context,
-            thinking_result=thinking_result,
-        )
+        reasoning_result = self._reason(user_input=user_input, intent=intent, context=context, thinking_result=thinking_result)
         reasoning_dict = reasoning_result.as_dict()
         reasoning_check = self.verifier.verify(reasoning_dict)
         print(f"Reasoning: {reasoning_result.summary()}")
         print(f"Reasoning Verification: {reasoning_check}")
-
         if not reasoning_check["verified"]:
             return "Reasoning verification failed: " + reasoning_check["reason"]
-
         decision = self.decision.decide(reasoning_result.summary())
         print(f"Decision: {decision}")
-
         plan = self.planner.plan(decision)
         print(f"Plan: {plan}")
-
         orchestration_result = None
         if execute and plan.get("status") == "READY":
-            orchestration_result = self.orchestrator.execute_plan(
-                plan,
-                executor=executor,
-                verifier=task_verifier,
-                approved=approved,
-            )
+            orchestration_result = self.orchestrator.execute_plan(plan, executor=executor, verifier=task_verifier, approved=approved, request_id=request_id)
             print(f"Orchestration: {orchestration_result}")
-
-        response = self.response.build(
-            plan,
-            context,
-            orchestration_result=orchestration_result,
-        )
+        response = self.response.build(plan, context, orchestration_result=orchestration_result)
         if not isinstance(response, str) or not response.strip():
             raise ValueError("Pipeline response must be a non-empty string.")
-
         print(f"Response: {response}")
         return response
